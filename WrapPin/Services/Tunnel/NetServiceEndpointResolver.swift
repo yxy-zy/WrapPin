@@ -2,6 +2,45 @@ import Darwin
 import Foundation
 
 enum NetServiceEndpointResolver {
+    static func directConnectionHosts(from addresses: [Data]?) -> [String] {
+        guard let addresses else { return [] }
+
+        let candidates = addresses.compactMap { address -> (host: String, rank: Int)? in
+            address.withUnsafeBytes { buffer in
+                guard
+                    let baseAddress = buffer.baseAddress,
+                    buffer.count >= MemoryLayout<sockaddr>.size
+                else { return nil }
+
+                let socketAddress = baseAddress.assumingMemoryBound(to: sockaddr.self)
+                let family = Int32(socketAddress.pointee.sa_family)
+                guard family == AF_INET || family == AF_INET6 else { return nil }
+
+                var hostBuffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                let result = getnameinfo(
+                    socketAddress,
+                    socklen_t(buffer.count),
+                    &hostBuffer,
+                    socklen_t(hostBuffer.count),
+                    nil,
+                    0,
+                    NI_NUMERICHOST
+                )
+                guard result == 0 else { return nil }
+
+                let host = String(cString: hostBuffer)
+                guard !host.isEmpty else { return nil }
+                return (host, family == AF_INET ? 0 : 1)
+            }
+        }
+
+        var seen = Set<String>()
+        return candidates
+            .sorted { lhs, rhs in lhs.rank < rhs.rank }
+            .map(\.host)
+            .filter { seen.insert($0).inserted }
+    }
+
     static func diagnosticAddressSummaries(from addresses: [Data]?) -> [String] {
         guard let addresses else { return [] }
 

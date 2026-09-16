@@ -81,7 +81,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         let identifier: String
         let authTag: String
         let endpointSource: DeviceEndpointSource
-        let fallbackHost: String?
+        let remainingProbeHosts: [String]
     }
 
     private static let localDevVPNPeerAddress = "10.7.0.1"
@@ -570,27 +570,36 @@ final class LocalDeviceSessionCoordinator: NSObject {
             "Resolved hostname=\(service.hostName ?? "(none)") port=\(service.port) "
                 + "addresses=\(advertisedAddresses.isEmpty ? "(none)" : advertisedAddresses.joined(separator: ", "))."
         )
-        let endpoint = NetServiceEndpointResolver.preferredHost(
-            from: service.addresses,
-            fallback: Self.localDevVPNPeerAddress
-        )
+        let directHosts = NetServiceEndpointResolver.directConnectionHosts(from: service.addresses)
+        let probeHosts: [String]
+        if connectionMode == .clashMiExperimental {
+            probeHosts = directHosts + [Self.localDevVPNPeerAddress]
+        } else {
+            probeHosts = [Self.localDevVPNPeerAddress]
+        }
+        let uniqueProbeHosts = probeHosts.reduce(into: [String]()) { result, host in
+            guard !result.contains(host) else { return }
+            result.append(host)
+        }
+        guard let selectedHost = uniqueProbeHosts.first else { return }
+        let selectedIsFallback = selectedHost == Self.localDevVPNPeerAddress
         log("PAIRING", "Identity matched; testing the discovered Remote Pairing service reachability.")
-        log("DISCOVERY", endpoint.usedFallback
+        log("DISCOVERY", selectedIsFallback
             ? "Using the existing LocalDevVPN loopback fallback for this service."
-            : "Using the service's discovered address.")
+            : "Clash Mi experiment is testing the service's direct Bonjour address first.")
         log(
             "TUN",
-            "Selected TCP endpoint=\(endpoint.host):\(service.port) "
-                + "source=\(endpoint.usedFallback ? "fixed-loopback-fallback" : "bonjour-address")."
+            "Selected TCP endpoint=\(selectedHost):\(service.port) "
+                + "source=\(selectedIsFallback ? "fixed-loopback-fallback" : "bonjour-address")."
         )
         connectionStage = .verifyingDevice
         verifyServiceIsReachable(RemotePairingService(
-            host: endpoint.host,
+            host: selectedHost,
             port: UInt16(service.port),
             identifier: identifier,
             authTag: authTag,
-            endpointSource: endpoint.usedFallback ? .fallback : .discovered,
-            fallbackHost: endpoint.usedFallback ? nil : Self.localDevVPNPeerAddress
+            endpointSource: selectedIsFallback ? .fallback : .discovered,
+            remainingProbeHosts: Array(uniqueProbeHosts.dropFirst())
         ))
     }
 
@@ -972,23 +981,34 @@ final class LocalDeviceSessionCoordinator: NSObject {
             return
         }
 
-        if let fallbackHost = service.fallbackHost, fallbackHost != service.host {
-            log("DISCOVERY", "Discovered address was unreachable; retrying the existing loopback fallback.")
+        if let nextHost = service.remainingProbeHosts.first, nextHost != service.host {
+            let nextIsFallback = nextHost == Self.localDevVPNPeerAddress
+            log(
+                "DISCOVERY",
+                nextIsFallback
+                    ? "Direct Bonjour endpoints were unreachable; testing the existing 10.7.0.1 fallback."
+                    : "Direct endpoint was unreachable; testing the next Bonjour address."
+            )
             serviceProbeAttemptCount = 0
-            let fallbackService = RemotePairingService(
-                host: fallbackHost,
+            let nextService = RemotePairingService(
+                host: nextHost,
                 port: service.port,
                 identifier: service.identifier,
                 authTag: service.authTag,
-                endpointSource: .fallback,
-                fallbackHost: nil
+                endpointSource: nextIsFallback ? .fallback : .discovered,
+                remainingProbeHosts: Array(service.remainingProbeHosts.dropFirst())
+            )
+            log(
+                "TUN",
+                "Selected TCP endpoint=\(nextHost):\(service.port) "
+                    + "source=\(nextIsFallback ? "fixed-loopback-fallback" : "bonjour-address")."
             )
             serviceProbeRetryTask?.cancel()
             serviceProbeRetryTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled, let self else { return }
                 self.serviceProbeRetryTask = nil
-                self.verifyServiceIsReachable(fallbackService)
+                self.verifyServiceIsReachable(nextService)
             }
             return
         }
