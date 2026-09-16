@@ -1,5 +1,31 @@
 import Foundation
 
+/// Selects only the connection-launch policy. Both modes use the exact same
+/// Bonjour discovery, remote-pairing, RSD, developer-session, and location
+/// simulation implementations.
+enum ConnectionMode: String, CaseIterable, Identifiable {
+    case localDevVPN
+    case clashMiExperimental
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .localDevVPN: String(localized: "Default (LocalDevVPN)")
+        case .clashMiExperimental: String(localized: "Clash Mi Experimental")
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .localDevVPN:
+            String(localized: "Keeps the existing LocalDevVPN startup and recovery behavior.")
+        case .clashMiExperimental:
+            String(localized: "Does not open LocalDevVPN. Runs the existing Remote Pairing discovery unchanged through Clash Mi's loopback tunnel.")
+        }
+    }
+}
+
 enum AppAppearance: String, CaseIterable, Identifiable {
     case automatic
     case light

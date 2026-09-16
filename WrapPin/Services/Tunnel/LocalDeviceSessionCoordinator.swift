@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Observation
+import os
 import WrapPinPairingFFI
 import UIKit
 
@@ -86,6 +87,11 @@ final class LocalDeviceSessionCoordinator: NSObject {
     private static let localDevVPNPeerAddress = "10.7.0.1"
     private static let enableURL = URL(string: "localdevvpn://enable?scheme=wrappin")!
     private static let minimumRestorationDisplayDuration: TimeInterval = 1.2
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.suversal.wrappin",
+        category: "Connection"
+    )
+    private static let maximumDiagnosticLogEntries = 80
 
     private(set) var phase: DeviceSessionPhase = .idle {
         didSet {
@@ -112,6 +118,8 @@ final class LocalDeviceSessionCoordinator: NSObject {
     private(set) var connectionStage: DeviceSessionConnectionStage = .idle
     private(set) var endpointSource: DeviceEndpointSource?
     private(set) var lastFailureMessage: String?
+    private(set) var connectionMode: ConnectionMode = .localDevVPN
+    private(set) var connectionLog: [String] = []
     var onConnectionEvent: ((UsageAnalyticsEvent) -> Void)?
     private var retryTelemetry = ConnectionRetryTelemetry()
     private var vpnReturnRetryUsed = false
@@ -190,6 +198,10 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
     func start(pairingRecord: Data, target: LocationTarget) {
         guard !workerIsRunning, !isBusy else { return }
+        connectionLog = []
+        log("VPN", connectionMode == .clashMiExperimental
+            ? "Clash Mi experimental mode enabled; LocalDevVPN launch is disabled."
+            : "Default LocalDevVPN mode enabled.")
         terminalFailureReported = false
         retryTelemetry.reset()
         schedulerFailureReason = nil
@@ -221,6 +233,17 @@ final class LocalDeviceSessionCoordinator: NSObject {
         phase = .discovering
         routeStartupForCurrentNetwork()
 #endif
+    }
+
+    /// Changes only launch and recovery policy. It never changes service
+    /// discovery, pairing verification, RSD, or location simulation.
+    func setConnectionMode(_ mode: ConnectionMode) {
+        guard !workerIsRunning, !isBusy else {
+            log("VPN", "Ignoring connection-mode change while a session is active.")
+            return
+        }
+        connectionMode = mode
+        log("VPN", "Connection mode set to \(mode.rawValue).")
     }
 
     func handleOpenURL(_ url: URL) {
@@ -425,6 +448,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         showConnectionHelpIfUnavailable: Bool = false
     ) {
         cleanupDiscovery()
+        log("DISCOVERY", "Starting existing _remotepairing._tcp.local. discovery.")
         sawNonMatchingService = false
         isDiscoveringServices = true
         phase = .discovering
@@ -469,19 +493,28 @@ final class LocalDeviceSessionCoordinator: NSObject {
                 try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled, let self, self.phase == .discovering else { return }
                 if self.sawNonMatchingService {
-                    self.fail(
-                        "WrapPin found an outdated device announcement. Toggle LocalDevVPN off and on, then try again."
-                    )
+                    if self.connectionMode == .clashMiExperimental {
+                        self.fail("Clash Mi announced a Remote Pairing service, but it did not match the saved pairing identity.")
+                    } else {
+                        self.fail(
+                            "WrapPin found an outdated device announcement. Toggle LocalDevVPN off and on, then try again."
+                        )
+                    }
                 } else {
-                    self.fail(
-                        "WrapPin could not find this iPhone through LocalDevVPN. Check that the tunnel is enabled and try again."
-                    )
+                    if self.connectionMode == .clashMiExperimental {
+                        self.fail("Clash Mi did not expose the existing Remote Pairing service to Bonjour discovery.")
+                    } else {
+                        self.fail(
+                            "WrapPin could not find this iPhone through LocalDevVPN. Check that the tunnel is enabled and try again."
+                        )
+                    }
                 }
             }
         }
     }
 
     private func resolve(_ service: NetService) {
+        log("DISCOVERY", "Service found; resolving its existing advertised endpoint.")
         service.delegate = self
         service.includesPeerToPeer = true
         service.schedule(in: .main, forMode: .common)
@@ -523,6 +556,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
 
         guard matchesPairedDevice else {
+            log("PAIRING", "Discovered service did not match the saved pairing identity.")
             sawNonMatchingService = true
             service.startMonitoring()
             return
@@ -533,6 +567,10 @@ final class LocalDeviceSessionCoordinator: NSObject {
             from: service.addresses,
             fallback: Self.localDevVPNPeerAddress
         )
+        log("PAIRING", "Identity matched; testing the discovered Remote Pairing service reachability.")
+        log("DISCOVERY", endpoint.usedFallback
+            ? "Using the existing LocalDevVPN loopback fallback for this service."
+            : "Using the service's discovered address.")
         connectionStage = .verifyingDevice
         verifyServiceIsReachable(RemotePairingService(
             host: endpoint.host,
@@ -552,6 +590,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
         phase = .connecting
         connectionStage = .openingSecureSession
+        log("PAIRING", "Reachability passed; starting the existing native Pair Verify and secure tunnel flow.")
         runNativeLocationSession()
     }
 
@@ -575,6 +614,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         let pairingRecord = pendingSession.pairingRecord
         let target = pendingSession.target
         let peerAddressString = resolvedService.host
+        log("PAIRING", "Native Remote Pair Verify starting.")
 
         DispatchQueue.global(qos: .userInitiated).async {
             guard
@@ -630,6 +670,9 @@ final class LocalDeviceSessionCoordinator: NSObject {
         mobileDataDiscoveryLoopTask?.cancel()
         mobileDataDiscoveryLoopTask = nil
         backgroundKeepAlive.start()
+        log("RSD", "RSD handshake and service discovery completed.")
+        log("DEVELOPER", "Developer session established.")
+        log("LOCATION", "Simulated location was accepted by the device.")
         phase = .active(target)
         connectionStage = .active
         if let event = retryTelemetry.becameActive() {
@@ -685,13 +728,21 @@ final class LocalDeviceSessionCoordinator: NSObject {
             phase = .idle
             connectionStage = .idle
         case .failure(let message):
+            log(categoryForNativeFailure(message), "\(message)")
             if isRecoverableTunnelConnectionFailure(message) {
                 let stage = FailureStage.classify(message, fallback: .locationUnknown)
                 lastFailureStage = stage
                 lastFailureDisposition = .recoverable
                 onRecoveryNeeded?(stage)
                 resolvedService = nil
-                if isMobileDataStartupMode {
+                if connectionMode == .clashMiExperimental {
+                    let localizedMessage = NSLocalizedString(message, comment: "")
+                    mobileDataGuidance = nil
+                    clearPendingSession()
+                    phase = .failed(localizedMessage)
+                    connectionStage = .failed
+                    lastFailureMessage = localizedMessage
+                } else if isMobileDataStartupMode {
                     enterMobileDataGuidance()
                 } else if hasRequestedLocalDevVPNThisAttempt {
                     phase = .discovering
@@ -714,6 +765,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
     private func fail(_ message: String) {
         backgroundKeepAlive.stop()
         let localizedMessage = NSLocalizedString(message, comment: "")
+        log(categoryForNativeFailure(message), message)
         lastFailureMessage = localizedMessage
         connectionStage = .failed
         localDevVPNReturnTimeout?.cancel()
@@ -818,6 +870,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         guard phase == .discovering, pendingSession != nil else { return }
 
         if reachable {
+            log("DISCOVERY", "Remote Pairing TCP reachability check succeeded.")
             serviceProbeAttemptCount = 0
             resolvedService = service
             endpointSource = service.endpointSource
@@ -832,6 +885,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
 
         if let fallbackHost = service.fallbackHost, fallbackHost != service.host {
+            log("DISCOVERY", "Discovered address was unreachable; retrying the existing loopback fallback.")
             serviceProbeAttemptCount = 0
             let fallbackService = RemotePairingService(
                 host: fallbackHost,
@@ -853,6 +907,12 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
         if isMobileDataStartupMode {
             serviceProbeAttemptCount = 0
+            return
+        }
+
+        if connectionMode == .clashMiExperimental {
+            serviceProbeAttemptCount = 0
+            fail("Clash Mi loopback could not reach the discovered Remote Pairing service.")
             return
         }
 
@@ -934,6 +994,17 @@ final class LocalDeviceSessionCoordinator: NSObject {
         networkDecisionTask = nil
         mobileDataGuidance = nil
 
+        if connectionMode == .clashMiExperimental {
+            isMobileDataStartupMode = false
+            log("VPN", "Bypassing the LocalDevVPN startup gate and using existing discovery unchanged.")
+            beginDiscovery(
+                reportTimeout: true,
+                openLocalDevVPNIfUnavailable: false,
+                showConnectionHelpIfUnavailable: false
+            )
+            return
+        }
+
         if wifiPathStatusIsKnown {
             if isWiFiPathSatisfied {
                 beginDiscovery(openLocalDevVPNIfUnavailable: true)
@@ -999,6 +1070,10 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
     private func openLocalDevVPNForPendingSession() {
 #if !targetEnvironment(simulator)
+        guard connectionMode == .localDevVPN else {
+            log("VPN", "Clash Mi experimental mode prevented a LocalDevVPN launch.")
+            return
+        }
         guard pendingSession != nil, !workerIsRunning else { return }
         cleanupDiscovery()
         mobileDataGuidance = nil
@@ -1015,6 +1090,35 @@ final class LocalDeviceSessionCoordinator: NSObject {
 #endif
     }
 
+    private func log(_ category: String, _ message: @autoclosure () -> String) {
+        let entry = "[\(category)] \(message())"
+        Self.logger.debug("\(entry, privacy: .public)")
+        connectionLog.append(entry)
+        if connectionLog.count > Self.maximumDiagnosticLogEntries {
+            connectionLog.removeFirst(connectionLog.count - Self.maximumDiagnosticLogEntries)
+        }
+    }
+
+    private func categoryForNativeFailure(_ message: String) -> String {
+        let normalized = message.lowercased()
+        if normalized.contains("pair") || normalized.contains("identity") || normalized.contains("saved pairing") || normalized.contains("secure tunnel") {
+            return "PAIRING"
+        }
+        if normalized.contains("service directory") || normalized.contains("rsd") {
+            return "RSD"
+        }
+        if normalized.contains("device session") || normalized.contains("developer") || normalized.contains("remote server") || normalized.contains("location service") {
+            return "DEVELOPER"
+        }
+        if normalized.contains("location controls") || normalized.contains("location") {
+            return "LOCATION"
+        }
+        if normalized.contains("localdevvpn") || normalized.contains("tunnel") || normalized.contains("reach") {
+            return "VPN"
+        }
+        return "DISCOVERY"
+    }
+
 }
 
 extension LocalDeviceSessionCoordinator: NetServiceBrowserDelegate, NetServiceDelegate {
@@ -1024,6 +1128,7 @@ extension LocalDeviceSessionCoordinator: NetServiceBrowserDelegate, NetServiceDe
         moreComing: Bool
     ) {
         MainActor.assumeIsolated {
+            self.log("DISCOVERY", "Bonjour reported a Remote Pairing service.")
             resolve(service)
         }
     }
@@ -1033,12 +1138,14 @@ extension LocalDeviceSessionCoordinator: NetServiceBrowserDelegate, NetServiceDe
         didNotSearch errorDict: [String: NSNumber]
     ) {
         MainActor.assumeIsolated {
+            self.log("DISCOVERY", "Bonjour discovery failed; Local Network permission or mDNS transport is unavailable.")
             fail("Local Network access is required to find this iPhone.")
         }
     }
 
     nonisolated func netServiceDidResolveAddress(_ sender: NetService) {
         MainActor.assumeIsolated {
+            self.log("DISCOVERY", "Remote Pairing service resolved; validating TXT identity.")
             useResolvedService(sender)
         }
     }

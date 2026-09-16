@@ -65,6 +65,18 @@ struct SettingsView: View {
                     .foregroundStyle(.primary)
                 }
 
+                Section("Connection Mode") {
+                    Picker("Connection Mode", selection: connectionModeBinding) {
+                        ForEach(ConnectionMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+
+                    Text(appModel.connectionMode.detail)
+                        .font(.footnote)
+                        .foregroundStyle(appModel.connectionMode == .clashMiExperimental ? .orange : .secondary)
+                }
+
                 Section {
                     Toggle(
                         "Share Anonymous Usage Statistics",
@@ -284,6 +296,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.mapDisplayStyle },
             set: appModel.setMapDisplayStyle
+        )
+    }
+
+    private var connectionModeBinding: Binding<ConnectionMode> {
+        Binding(
+            get: { appModel.connectionMode },
+            set: { appModel.setConnectionMode($0) }
         )
     }
 

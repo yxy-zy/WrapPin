@@ -38,10 +38,16 @@
 "Appearance" = "外观";
 "Theme" = "主题";
 "Map Style" = "地图样式";
+"Connection Mode" = "连接模式";
+"Default (LocalDevVPN)" = "默认（LocalDevVPN）";
+"Clash Mi Experimental" = "Clash Mi 实验模式";
+"Keeps the existing LocalDevVPN startup and recovery behavior." = "保留原有 LocalDevVPN 的启动和恢复行为。";
+"Does not open LocalDevVPN. Runs the existing Remote Pairing discovery unchanged through Clash Mi's loopback tunnel." = "不会打开 LocalDevVPN；通过 Clash Mi 的回环隧道原样运行现有 Remote Pairing 发现。";
 "Device" = "设备";
 "Privacy" = "隐私";
 "About" = "关于";
 "Connection Health" = "连接检测";
+"Connection Log" = "连接日志";
 "Pairing & Connection" = "设备连接";
 "Share Anonymous Usage Statistics" = "发送匿名使用统计";
 "What Is Shared" = "分享哪些数据";
@@ -195,6 +201,9 @@
 "The paired iPhone was announced, but its LocalDevVPN address was not reachable. Reconnect LocalDevVPN and check its device and tunnel IP settings." = "已发现配对的 iPhone，但无法连接其 LocalDevVPN 地址。请重连 LocalDevVPN，并检查设备 IP 和隧道 IP 设置。";
 "WrapPin found an outdated device announcement. Toggle LocalDevVPN off and on, then try again." = "WrapPin 发现了过期的设备广播。请关闭再开启 LocalDevVPN，然后重试。";
 "WrapPin could not find this iPhone through LocalDevVPN. Check that the tunnel is enabled and try again." = "WrapPin 无法通过 LocalDevVPN 找到这台 iPhone。请确认隧道已开启后重试。";
+"Clash Mi loopback could not reach the discovered Remote Pairing service." = "Clash Mi 回环无法连接已发现的 Remote Pairing 服务。";
+"Clash Mi announced a Remote Pairing service, but it did not match the saved pairing identity." = "Clash Mi 已广播 Remote Pairing 服务，但它与已保存的配对身份不匹配。";
+"Clash Mi did not expose the existing Remote Pairing service to Bonjour discovery." = "Clash Mi 没有将现有 Remote Pairing 服务暴露给 Bonjour 发现。";
 "Local Network access is required to find this iPhone." = "需要本地网络权限才能查找这台 iPhone。";
 
 /* Connection diagnostics */

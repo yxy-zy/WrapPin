@@ -1,0 +1,46 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/clash-mi-loopback
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned WrapPin IPA
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build the iPhone app without signing
+        run: >-
+          xcodebuild
+          -project WrapPin.xcodeproj
+          -scheme WrapPin
+          -configuration Release
+          -sdk iphoneos
+          -destination 'generic/platform=iOS'
+          -derivedDataPath "$PWD/.derived-data"
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=''
+          clean build
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          mkdir -p package/Payload
+          cp -R .derived-data/Build/Products/Release-iphoneos/WrapPin.app package/Payload/WrapPin.app
+          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.6-build10-clash-mi-experimental.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: WrapPin-1.0.6-build10-clash-mi-experimental
+          path: WrapPin-1.0.6-build10-clash-mi-experimental.ipa
+          if-no-files-found: error

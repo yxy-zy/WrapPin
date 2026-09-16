@@ -26,6 +26,13 @@ struct ConnectionHealthView: View {
                 )
 
                 healthRow(
+                    title: String(localized: "Connection Mode"),
+                    value: appModel.connectionMode.title,
+                    symbol: appModel.connectionMode == .clashMiExperimental ? "flask.fill" : "shield.lefthalf.filled",
+                    color: appModel.connectionMode == .clashMiExperimental ? .orange : .secondary
+                )
+
+                healthRow(
                     title: String(localized: "Location Session"),
                     value: sessionValue,
                     symbol: sessionSymbol,
@@ -126,6 +133,19 @@ struct ConnectionHealthView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 }
+
+                if !appModel.deviceSession.connectionLog.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Connection Log", systemImage: "text.alignleft")
+                            .font(.subheadline.weight(.semibold))
+                        ForEach(appModel.deviceSession.connectionLog.suffix(8), id: \.self) { entry in
+                            Text(entry)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
             } header: {
                 Text("Connection Check")
             } footer: {
@@ -146,11 +166,15 @@ struct ConnectionHealthView: View {
             } header: {
                 Text("Support")
             } footer: {
-                Text("Copies a status-only report you can paste into a bug report. It never includes locations, searches, pairing records, PINs, device names or error text.")
+                Text("Copies the connection mode and stage log for troubleshooting. It never includes locations, searches, pairing records, PINs, credentials, or device names.")
             }
 
             Section("Other VPNs") {
-                Text("Another VPN may affect local device connections. If it is appropriate for your network, compare a test with that VPN paused. Keep LocalDevVPN enabled when starting a location session.")
+                if appModel.connectionMode == .clashMiExperimental {
+                    Text("Clash Mi Experimental intentionally does not open LocalDevVPN. Its result only tests whether the existing Remote Pairing discovery can use Clash Mi's configured loopback path.")
+                } else {
+                    Text("Another VPN may affect local device connections. If it is appropriate for your network, compare a test with that VPN paused. Keep LocalDevVPN enabled when starting a location session.")
+                }
                 Text("WrapPin has not detected another VPN. This is a troubleshooting check, not a diagnosis.")
                     .foregroundStyle(.secondary)
             }
@@ -393,6 +417,7 @@ struct ConnectionHealthView: View {
         App: \(appVersion) (\(build))
         iOS: \(UIDevice.current.systemVersion)
         Pairing: \(pairingValue)
+        Connection mode: \(appModel.connectionMode.title)
         Last pairing failure stage (this launch): \(appModel.onDevicePairing.lastFailureStage?.rawValue ?? "None")
         LocalDevVPN: \(localDevVPNValue)
         Session: \(sessionValue)
@@ -405,6 +430,8 @@ struct ConnectionHealthView: View {
         Connection check result: \(diagnosticResultStatus)
         Appearance: \(appModel.appearance.title)
         Map style: \(appModel.mapDisplayStyle.title)
+        Connection log:
+        \(appModel.deviceSession.connectionLog.joined(separator: "\n"))
         Location data: Not included
         """
     }

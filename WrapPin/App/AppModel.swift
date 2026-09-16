@@ -10,6 +10,7 @@ final class AppModel {
     private static let historyKey = "locationHistory"
     private static let appearanceKey = "appAppearance"
     private static let mapDisplayStyleKey = "mapDisplayStyle"
+    private static let connectionModeKey = "connectionMode"
     private static let activeSessionRecoveryKey = "activeSessionRecovery"
     private static let anonymousUsageStatisticsKey = "sharesAnonymousUsageStatistics"
 
@@ -25,6 +26,7 @@ final class AppModel {
     private(set) var locationHistory: [LocationTarget]
     private(set) var appearance: AppAppearance
     private(set) var mapDisplayStyle: MapDisplayStyle
+    private(set) var connectionMode: ConnectionMode
     private(set) var sharesAnonymousUsageStatistics: Bool
     private(set) var interruptedSession: SessionRecoveryRecord?
     private(set) var isRestoringInterruptedSession = false
@@ -63,10 +65,14 @@ final class AppModel {
         self.mapDisplayStyle = MapDisplayStyle(
             rawValue: preferences.string(forKey: Self.mapDisplayStyleKey) ?? ""
         ) ?? .standard
+        self.connectionMode = ConnectionMode(
+            rawValue: preferences.string(forKey: Self.connectionModeKey) ?? ""
+        ) ?? .localDevVPN
         self.sharesAnonymousUsageStatistics = Self.initialUsageStatisticsPreference(
             in: preferences
         )
         self.interruptedSession = Self.recoveryRecord(in: preferences)
+        self.deviceSession.setConnectionMode(connectionMode)
 
         onDevicePairing.onFailure = { [weak self] stage in
             guard let self else { return }
@@ -206,6 +212,12 @@ final class AppModel {
         preferences.set(style.rawValue, forKey: Self.mapDisplayStyleKey)
     }
 
+    func setConnectionMode(_ mode: ConnectionMode) {
+        connectionMode = mode
+        preferences.set(mode.rawValue, forKey: Self.connectionModeKey)
+        deviceSession.setConnectionMode(mode)
+    }
+
     func setSharesAnonymousUsageStatistics(_ enabled: Bool) {
         sharesAnonymousUsageStatistics = enabled
         preferences.set(enabled, forKey: Self.anonymousUsageStatisticsKey)
@@ -252,6 +264,7 @@ final class AppModel {
         locationHistory = []
         appearance = .automatic
         mapDisplayStyle = .standard
+        connectionMode = .localDevVPN
         sharesAnonymousUsageStatistics = false
         interruptedSession = nil
         activeSessionRecovery = nil
