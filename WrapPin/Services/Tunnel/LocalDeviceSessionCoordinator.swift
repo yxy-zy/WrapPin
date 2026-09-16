@@ -943,7 +943,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         case .posix(let code):
             "POSIX \(code.rawValue) (\(code))"
         case .dns(let code):
-            "DNS \(code.rawValue)"
+            "DNS \(code)"
         case .tls(let status):
             "TLS \(status)"
         @unknown default:
