@@ -38,11 +38,11 @@ jobs:
           set -euo pipefail
           mkdir -p package/Payload
           cp -R .derived-data/Build/Products/Release-iphoneos/WrapPin.app package/Payload/WrapPin.app
-          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.6-build10-clash-mi-experimental.ipa
+          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.6-build11-clash-mi-tcp-diagnostics.ipa
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: WrapPin-1.0.6-build10-clash-mi-experimental
-          path: WrapPin-1.0.6-build10-clash-mi-experimental.ipa
+          name: WrapPin-1.0.6-build11-clash-mi-tcp-diagnostics
+          path: WrapPin-1.0.6-build11-clash-mi-tcp-diagnostics.ipa
           if-no-files-found: error

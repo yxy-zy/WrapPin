@@ -563,6 +563,13 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
 
         guard serviceProbeConnection == nil, serviceProbeRetryTask == nil else { return }
+        let advertisedAddresses = NetServiceEndpointResolver
+            .diagnosticAddressSummaries(from: service.addresses)
+        log(
+            "DISCOVERY",
+            "Resolved hostname=\(service.hostName ?? "(none)") port=\(service.port) "
+                + "addresses=\(advertisedAddresses.isEmpty ? "(none)" : advertisedAddresses.joined(separator: ", "))."
+        )
         let endpoint = NetServiceEndpointResolver.preferredHost(
             from: service.addresses,
             fallback: Self.localDevVPNPeerAddress
@@ -571,6 +578,11 @@ final class LocalDeviceSessionCoordinator: NSObject {
         log("DISCOVERY", endpoint.usedFallback
             ? "Using the existing LocalDevVPN loopback fallback for this service."
             : "Using the service's discovered address.")
+        log(
+            "TUN",
+            "Selected TCP endpoint=\(endpoint.host):\(service.port) "
+                + "source=\(endpoint.usedFallback ? "fixed-loopback-fallback" : "bonjour-address")."
+        )
         connectionStage = .verifyingDevice
         verifyServiceIsReachable(RemotePairingService(
             host: endpoint.host,
@@ -828,13 +840,41 @@ final class LocalDeviceSessionCoordinator: NSObject {
             switch state {
             case .ready:
                 Task { @MainActor [weak self] in
+                    self?.log(
+                        "TUN",
+                        "TCP ready endpoint=\(service.host):\(service.port) "
+                            + "interface=\(Self.interfaceDescription(connection.currentPath))."
+                    )
                     self?.finishServiceProbe(connection, service: service, reachable: true)
                 }
-            case .failed, .cancelled:
+            case .waiting(let error):
                 Task { @MainActor [weak self] in
-                    self?.finishServiceProbe(connection, service: service, reachable: false)
+                    self?.log(
+                        "TUN",
+                        "TCP waiting endpoint=\(service.host):\(service.port) "
+                            + "interface=\(Self.interfaceDescription(connection.currentPath)) "
+                            + "error=\(Self.networkErrorDescription(error))."
+                    )
                 }
-            case .setup, .waiting, .preparing:
+            case .failed(let error):
+                Task { @MainActor [weak self] in
+                    self?.finishServiceProbe(
+                        connection,
+                        service: service,
+                        reachable: false,
+                        failure: Self.networkErrorDescription(error)
+                    )
+                }
+            case .cancelled:
+                Task { @MainActor [weak self] in
+                    self?.finishServiceProbe(
+                        connection,
+                        service: service,
+                        reachable: false,
+                        failure: "NWConnection cancelled"
+                    )
+                }
+            case .setup, .preparing:
                 break
             @unknown default:
                 break
@@ -844,7 +884,12 @@ final class LocalDeviceSessionCoordinator: NSObject {
         serviceProbeTimeout = Task { @MainActor [weak self, weak connection] in
             try? await Task.sleep(for: .milliseconds(900))
             guard !Task.isCancelled, let self, let connection else { return }
-            self.finishServiceProbe(connection, service: service, reachable: false)
+            self.finishServiceProbe(
+                connection,
+                service: service,
+                reachable: false,
+                failure: "timeout after 900 ms"
+            )
         }
         connection.start(queue: serviceProbeQueue)
     }
@@ -852,15 +897,58 @@ final class LocalDeviceSessionCoordinator: NSObject {
     private func finishServiceProbe(
         _ connection: NWConnection,
         service: RemotePairingService,
-        reachable: Bool
+        reachable: Bool,
+        failure: String? = nil
     ) {
         guard serviceProbeConnection === connection else { return }
+        if !reachable {
+            log(
+                "TUN",
+                "TCP failed endpoint=\(service.host):\(service.port) "
+                    + "interface=\(Self.interfaceDescription(connection.currentPath)) "
+                    + "error=\(failure ?? "unknown")."
+            )
+        }
         serviceProbeConnection = nil
         serviceProbeTimeout?.cancel()
         serviceProbeTimeout = nil
         connection.stateUpdateHandler = nil
         connection.cancel()
         handleServiceProbeResult(reachable, service: service)
+    }
+
+    private static func interfaceDescription(_ path: NWPath?) -> String {
+        guard let path else { return "unavailable" }
+        let interfaces = path.availableInterfaces
+            .filter { path.usesInterfaceType($0.type) }
+            .map { networkInterface in
+            "\(networkInterface.name)/\(interfaceTypeDescription(networkInterface.type))"
+        }
+        return interfaces.isEmpty ? "unavailable" : interfaces.joined(separator: ",")
+    }
+
+    private static func interfaceTypeDescription(_ type: NWInterface.InterfaceType) -> String {
+        switch type {
+        case .wifi: "wifi"
+        case .cellular: "cellular"
+        case .wiredEthernet: "wired"
+        case .loopback: "loopback"
+        case .other: "other"
+        @unknown default: "unknown"
+        }
+    }
+
+    private static func networkErrorDescription(_ error: NWError) -> String {
+        switch error {
+        case .posix(let code):
+            "POSIX \(code.rawValue) (\(code))"
+        case .dns(let code):
+            "DNS \(code.rawValue)"
+        case .tls(let status):
+            "TLS \(status)"
+        @unknown default:
+            "NWError unknown"
+        }
     }
 
     private func handleServiceProbeResult(
