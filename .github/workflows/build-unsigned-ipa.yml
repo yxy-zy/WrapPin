@@ -12,7 +12,9 @@ permissions:
 jobs:
   build:
     name: Build unsigned WrapPin IPA
-    runs-on: macos-15
+    # WrapPin targets iOS 27 and uses the corresponding MapKit APIs.
+    # The standard macos-15 image currently defaults to Xcode 16.4/iOS 18.5.
+    runs-on: xcode-27
     steps:
       - name: Check out source
         uses: actions/checkout@v4
