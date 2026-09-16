@@ -504,16 +504,18 @@ async fn run_location_session(
     let mut remote_pairing = RemotePairingClient::new(socket, DEFAULT_HOST_NAME);
     timeout(SESSION_TIMEOUT, remote_pairing.attempt_pair_verify())
         .await
-        .map_err(|_| "The paired iPhone did not respond in time.".to_string())?
-        .map_err(|_| "The iPhone rejected the saved pairing session.".to_string())?;
+        .map_err(|_| "pair verify stage=attempt-handshake error=timeout".to_string())?
+        .map_err(|error| {
+            format!("pair verify stage=attempt-handshake raw_error={error:?}")
+        })?;
     timeout(
         SESSION_TIMEOUT,
         remote_pairing.validate_pairing(&mut pairing_file),
     )
     .await
-    .map_err(|_| "Pairing verification took too long.".to_string())?
-    .map_err(|_| {
-        "The saved pairing is no longer valid. Reset Device Setup and pair again.".to_string()
+    .map_err(|_| "pair verify stage=validate-record error=timeout".to_string())?
+    .map_err(|error| {
+        format!("pair verify stage=validate-record raw_error={error:?}")
     })?;
     check_location_cancellation(&cancellation)?;
 

@@ -584,6 +584,11 @@ final class LocalDeviceSessionCoordinator: NSObject {
         guard let selectedHost = uniqueProbeHosts.first else { return }
         let selectedIsFallback = selectedHost == Self.localDevVPNPeerAddress
         log("PAIRING", "Identity matched; testing the discovered Remote Pairing service reachability.")
+        log(
+            "PAIRING",
+            "record_bytes=\(pairingRecord.count) record_parse=ok "
+                + "device_identity_present=yes service_identity_matched=yes."
+        )
         log("DISCOVERY", selectedIsFallback
             ? "Using the existing LocalDevVPN loopback fallback for this service."
             : "Clash Mi experiment is testing the service's direct Bonjour address first.")

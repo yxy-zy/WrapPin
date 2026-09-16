@@ -19,6 +19,13 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Rebuild native pairing diagnostics
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+          rm -rf Frameworks/WrapPinPairingFFI.xcframework
+          ./scripts/build-pairing-engine.sh
+
       - name: Build the iPhone app without signing
         run: >-
           xcodebuild
@@ -38,11 +45,11 @@ jobs:
           set -euo pipefail
           mkdir -p package/Payload
           cp -R .derived-data/Build/Products/Release-iphoneos/WrapPin.app package/Payload/WrapPin.app
-          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.6-build12-clash-mi-direct-endpoint.ipa
+          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.6-build13-pair-verify-diagnostics.ipa
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: WrapPin-1.0.6-build12-clash-mi-direct-endpoint
-          path: WrapPin-1.0.6-build12-clash-mi-direct-endpoint.ipa
+          name: WrapPin-1.0.6-build13-pair-verify-diagnostics
+          path: WrapPin-1.0.6-build13-pair-verify-diagnostics.ipa
           if-no-files-found: error
