@@ -165,6 +165,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
     private var serviceProbeTimeout: Task<Void, Never>?
     private var serviceProbeRetryTask: Task<Void, Never>?
     private var serviceProbeAttemptCount = 0
+    private var serviceProbeSequenceStartedAt: Date?
 
     private var activeSession: OpaquePointer?
     private var activeRunIdentifier: UUID?
@@ -570,41 +571,34 @@ final class LocalDeviceSessionCoordinator: NSObject {
             "Resolved hostname=\(service.hostName ?? "(none)") port=\(service.port) "
                 + "addresses=\(advertisedAddresses.isEmpty ? "(none)" : advertisedAddresses.joined(separator: ", "))."
         )
-        let directHosts = NetServiceEndpointResolver.directConnectionHosts(from: service.addresses)
-        let probeHosts: [String]
-        if connectionMode == .clashMiExperimental {
-            probeHosts = directHosts + [Self.localDevVPNPeerAddress]
-        } else {
-            probeHosts = [Self.localDevVPNPeerAddress]
-        }
-        let uniqueProbeHosts = probeHosts.reduce(into: [String]()) { result, host in
-            guard !result.contains(host) else { return }
-            result.append(host)
-        }
-        guard let selectedHost = uniqueProbeHosts.first else { return }
-        let selectedIsFallback = selectedHost == Self.localDevVPNPeerAddress
+        let selectedHost = Self.localDevVPNPeerAddress
+        let selectedIsFallback = true
         log("PAIRING", "Identity matched; testing the discovered Remote Pairing service reachability.")
         log(
             "PAIRING",
             "record_bytes=\(pairingRecord.count) record_parse=ok "
                 + "device_identity_present=yes service_identity_matched=yes."
         )
-        log("DISCOVERY", selectedIsFallback
-            ? "Using the existing LocalDevVPN loopback fallback for this service."
-            : "Clash Mi experiment is testing the service's direct Bonjour address first.")
+        log(
+            "DISCOVERY",
+            connectionMode == .clashMiExperimental
+                ? "Clash Mi experiment uses Bonjour only for discovery; testing 10.7.0.1 reflection."
+                : "Using the existing LocalDevVPN loopback fallback for this service."
+        )
         log(
             "TUN",
             "Selected TCP endpoint=\(selectedHost):\(service.port) "
                 + "source=\(selectedIsFallback ? "fixed-loopback-fallback" : "bonjour-address")."
         )
         connectionStage = .verifyingDevice
+        serviceProbeSequenceStartedAt = Date()
         verifyServiceIsReachable(RemotePairingService(
             host: selectedHost,
             port: UInt16(service.port),
             identifier: identifier,
             authTag: authTag,
             endpointSource: selectedIsFallback ? .fallback : .discovered,
-            remainingProbeHosts: Array(uniqueProbeHosts.dropFirst())
+            remainingProbeHosts: []
         ))
     }
 
@@ -843,6 +837,13 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
 
         serviceProbeAttemptCount += 1
+        if connectionMode == .clashMiExperimental {
+            log(
+                "TUN",
+                "10.7.0.1:\(service.port) reflection probe attempt "
+                    + "\(serviceProbeAttemptCount)/20."
+            )
+        }
         let connection = NWConnection(
             host: NWEndpoint.Host(service.host),
             port: port,
@@ -1024,8 +1025,26 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
 
         if connectionMode == .clashMiExperimental {
-            serviceProbeAttemptCount = 0
-            fail("Clash Mi loopback could not reach the discovered Remote Pairing service.")
+            let elapsed = serviceProbeSequenceStartedAt.map { Date().timeIntervalSince($0) } ?? 10
+            guard serviceProbeAttemptCount < 20, elapsed < 9.5 else {
+                log(
+                    "TUN",
+                    "10.7.0.1:\(service.port) reflection unavailable after "
+                        + "\(serviceProbeAttemptCount) attempts / \(String(format: "%.1f", elapsed)) seconds."
+                )
+                serviceProbeAttemptCount = 0
+                serviceProbeSequenceStartedAt = nil
+                fail("Clash Mi loopback did not provide LocalDevVPN-compatible packet reflection within 10 seconds.")
+                return
+            }
+
+            serviceProbeRetryTask?.cancel()
+            serviceProbeRetryTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled, let self else { return }
+                self.serviceProbeRetryTask = nil
+                self.verifyServiceIsReachable(service)
+            }
             return
         }
 
@@ -1059,6 +1078,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         serviceProbeConnection?.cancel()
         serviceProbeConnection = nil
         serviceProbeAttemptCount = 0
+        serviceProbeSequenceStartedAt = nil
     }
 
     private func clearPendingSession() {
