@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - experiment/clash-mi-loopback
+      - experiment/sing-box-loopback
 
 permissions:
   contents: read
@@ -45,11 +46,11 @@ jobs:
           set -euo pipefail
           mkdir -p package/Payload
           cp -R .derived-data/Build/Products/Release-iphoneos/WrapPin.app package/Payload/WrapPin.app
-          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.6-build14-clash-reflection-retry.ipa
+          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.6-build15-sing-box-reflection.ipa
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: WrapPin-1.0.6-build14-clash-reflection-retry
-          path: WrapPin-1.0.6-build14-clash-reflection-retry.ipa
+          name: WrapPin-1.0.6-build15-sing-box-reflection
+          path: WrapPin-1.0.6-build15-sing-box-reflection.ipa
           if-no-files-found: error

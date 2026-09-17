@@ -74,7 +74,7 @@ struct SettingsView: View {
 
                     Text(appModel.connectionMode.detail)
                         .font(.footnote)
-                        .foregroundStyle(appModel.connectionMode == .clashMiExperimental ? .orange : .secondary)
+                        .foregroundStyle(appModel.connectionMode == .singBoxExperimental ? .orange : .secondary)
                 }
 
                 Section {

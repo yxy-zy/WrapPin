@@ -200,8 +200,8 @@ final class LocalDeviceSessionCoordinator: NSObject {
     func start(pairingRecord: Data, target: LocationTarget) {
         guard !workerIsRunning, !isBusy else { return }
         connectionLog = []
-        log("VPN", connectionMode == .clashMiExperimental
-            ? "Clash Mi experimental mode enabled; LocalDevVPN launch is disabled."
+        log("VPN", connectionMode == .singBoxExperimental
+            ? "sing-box experimental mode enabled; LocalDevVPN launch is disabled."
             : "Default LocalDevVPN mode enabled.")
         terminalFailureReported = false
         retryTelemetry.reset()
@@ -494,16 +494,16 @@ final class LocalDeviceSessionCoordinator: NSObject {
                 try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled, let self, self.phase == .discovering else { return }
                 if self.sawNonMatchingService {
-                    if self.connectionMode == .clashMiExperimental {
-                        self.fail("Clash Mi announced a Remote Pairing service, but it did not match the saved pairing identity.")
+                    if self.connectionMode == .singBoxExperimental {
+                        self.fail("sing-box announced a Remote Pairing service, but it did not match the saved pairing identity.")
                     } else {
                         self.fail(
                             "WrapPin found an outdated device announcement. Toggle LocalDevVPN off and on, then try again."
                         )
                     }
                 } else {
-                    if self.connectionMode == .clashMiExperimental {
-                        self.fail("Clash Mi did not expose the existing Remote Pairing service to Bonjour discovery.")
+                    if self.connectionMode == .singBoxExperimental {
+                        self.fail("sing-box did not expose the existing Remote Pairing service to Bonjour discovery.")
                     } else {
                         self.fail(
                             "WrapPin could not find this iPhone through LocalDevVPN. Check that the tunnel is enabled and try again."
@@ -581,8 +581,8 @@ final class LocalDeviceSessionCoordinator: NSObject {
         )
         log(
             "DISCOVERY",
-            connectionMode == .clashMiExperimental
-                ? "Clash Mi experiment uses Bonjour only for discovery; testing 10.7.0.1 reflection."
+            connectionMode == .singBoxExperimental
+                ? "sing-box experiment uses Bonjour only for discovery; testing 10.7.0.1 reflection."
                 : "Using the existing LocalDevVPN loopback fallback for this service."
         )
         log(
@@ -755,7 +755,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
                 lastFailureDisposition = .recoverable
                 onRecoveryNeeded?(stage)
                 resolvedService = nil
-                if connectionMode == .clashMiExperimental {
+                if connectionMode == .singBoxExperimental {
                     let localizedMessage = NSLocalizedString(message, comment: "")
                     mobileDataGuidance = nil
                     clearPendingSession()
@@ -837,11 +837,11 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
 
         serviceProbeAttemptCount += 1
-        if connectionMode == .clashMiExperimental {
+        if connectionMode == .singBoxExperimental {
             log(
                 "TUN",
-                "10.7.0.1:\(service.port) reflection probe attempt "
-                    + "\(serviceProbeAttemptCount)/20."
+                "sing-box reflection probe attempt \(serviceProbeAttemptCount)/20 "
+                    + "endpoint=10.7.0.1:\(service.port)."
             )
         }
         let connection = NWConnection(
@@ -1024,7 +1024,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
             return
         }
 
-        if connectionMode == .clashMiExperimental {
+        if connectionMode == .singBoxExperimental {
             let elapsed = serviceProbeSequenceStartedAt.map { Date().timeIntervalSince($0) } ?? 10
             guard serviceProbeAttemptCount < 20, elapsed < 9.5 else {
                 log(
@@ -1034,7 +1034,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
                 )
                 serviceProbeAttemptCount = 0
                 serviceProbeSequenceStartedAt = nil
-                fail("Clash Mi loopback did not provide LocalDevVPN-compatible packet reflection within 10 seconds.")
+                fail("sing-box loopback_address did not provide StosVPN-compatible packet reflection within 10 seconds.")
                 return
             }
 
@@ -1127,7 +1127,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         networkDecisionTask = nil
         mobileDataGuidance = nil
 
-        if connectionMode == .clashMiExperimental {
+        if connectionMode == .singBoxExperimental {
             isMobileDataStartupMode = false
             log("VPN", "Bypassing the LocalDevVPN startup gate and using existing discovery unchanged.")
             beginDiscovery(
@@ -1204,7 +1204,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
     private func openLocalDevVPNForPendingSession() {
 #if !targetEnvironment(simulator)
         guard connectionMode == .localDevVPN else {
-            log("VPN", "Clash Mi experimental mode prevented a LocalDevVPN launch.")
+            log("VPN", "sing-box experimental mode prevented a LocalDevVPN launch.")
             return
         }
         guard pendingSession != nil, !workerIsRunning else { return }

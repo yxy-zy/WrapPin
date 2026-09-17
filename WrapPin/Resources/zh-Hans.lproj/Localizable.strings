@@ -40,9 +40,9 @@
 "Map Style" = "地图样式";
 "Connection Mode" = "连接模式";
 "Default (LocalDevVPN)" = "默认（LocalDevVPN）";
-"Clash Mi Experimental" = "Clash Mi 实验模式";
+"sing-box Experimental" = "sing-box 实验模式";
 "Keeps the existing LocalDevVPN startup and recovery behavior." = "保留原有 LocalDevVPN 的启动和恢复行为。";
-"Does not open LocalDevVPN. Runs the existing Remote Pairing discovery unchanged through Clash Mi's loopback tunnel." = "不会打开 LocalDevVPN；通过 Clash Mi 的回环隧道原样运行现有 Remote Pairing 发现。";
+"Does not open LocalDevVPN. Tests sing-box's StosVPN-compatible loopback_address without changing Remote Pairing." = "不会打开 LocalDevVPN；在不修改 Remote Pairing 的前提下测试 sing-box 与 StosVPN 兼容的 loopback_address。";
 "Device" = "设备";
 "Privacy" = "隐私";
 "About" = "关于";
@@ -204,6 +204,9 @@
 "Clash Mi loopback could not reach the discovered Remote Pairing service." = "Clash Mi 回环无法连接已发现的 Remote Pairing 服务。";
 "Clash Mi announced a Remote Pairing service, but it did not match the saved pairing identity." = "Clash Mi 已广播 Remote Pairing 服务，但它与已保存的配对身份不匹配。";
 "Clash Mi did not expose the existing Remote Pairing service to Bonjour discovery." = "Clash Mi 没有将现有 Remote Pairing 服务暴露给 Bonjour 发现。";
+"sing-box announced a Remote Pairing service, but it did not match the saved pairing identity." = "sing-box 已广播 Remote Pairing 服务，但它与已保存的配对身份不匹配。";
+"sing-box did not expose the existing Remote Pairing service to Bonjour discovery." = "sing-box 没有将现有 Remote Pairing 服务暴露给 Bonjour 发现。";
+"sing-box loopback_address did not provide StosVPN-compatible packet reflection within 10 seconds." = "sing-box 的 loopback_address 未能在 10 秒内提供与 StosVPN 兼容的数据包反射。";
 "Local Network access is required to find this iPhone." = "需要本地网络权限才能查找这台 iPhone。";
 
 /* Connection diagnostics */

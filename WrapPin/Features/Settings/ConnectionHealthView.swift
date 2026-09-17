@@ -28,8 +28,8 @@ struct ConnectionHealthView: View {
                 healthRow(
                     title: String(localized: "Connection Mode"),
                     value: appModel.connectionMode.title,
-                    symbol: appModel.connectionMode == .clashMiExperimental ? "flask.fill" : "shield.lefthalf.filled",
-                    color: appModel.connectionMode == .clashMiExperimental ? .orange : .secondary
+                    symbol: appModel.connectionMode == .singBoxExperimental ? "flask.fill" : "shield.lefthalf.filled",
+                    color: appModel.connectionMode == .singBoxExperimental ? .orange : .secondary
                 )
 
                 healthRow(
@@ -170,8 +170,8 @@ struct ConnectionHealthView: View {
             }
 
             Section("Other VPNs") {
-                if appModel.connectionMode == .clashMiExperimental {
-                    Text("Clash Mi Experimental intentionally does not open LocalDevVPN. Its result only tests whether the existing Remote Pairing discovery can use Clash Mi's configured loopback path.")
+                if appModel.connectionMode == .singBoxExperimental {
+                    Text("sing-box Experimental intentionally does not open LocalDevVPN. It only tests whether sing-box loopback_address provides StosVPN-compatible reflection.")
                 } else {
                     Text("Another VPN may affect local device connections. If it is appropriate for your network, compare a test with that VPN paused. Keep LocalDevVPN enabled when starting a location session.")
                 }

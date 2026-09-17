@@ -5,14 +5,14 @@ import Foundation
 /// simulation implementations.
 enum ConnectionMode: String, CaseIterable, Identifiable {
     case localDevVPN
-    case clashMiExperimental
+    case singBoxExperimental = "clashMiExperimental"
 
     var id: Self { self }
 
     var title: String {
         switch self {
         case .localDevVPN: String(localized: "Default (LocalDevVPN)")
-        case .clashMiExperimental: String(localized: "Clash Mi Experimental")
+        case .singBoxExperimental: String(localized: "sing-box Experimental")
         }
     }
 
@@ -20,8 +20,8 @@ enum ConnectionMode: String, CaseIterable, Identifiable {
         switch self {
         case .localDevVPN:
             String(localized: "Keeps the existing LocalDevVPN startup and recovery behavior.")
-        case .clashMiExperimental:
-            String(localized: "Does not open LocalDevVPN. Runs the existing Remote Pairing discovery unchanged through Clash Mi's loopback tunnel.")
+        case .singBoxExperimental:
+            String(localized: "Does not open LocalDevVPN. Tests sing-box's StosVPN-compatible loopback_address without changing Remote Pairing.")
         }
     }
 }
