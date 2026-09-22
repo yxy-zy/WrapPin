@@ -36,6 +36,7 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>localdevvpn</string>
+		<string>shadowrocket</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
@@ -45,7 +46,7 @@
 		<string>_remotepairing._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>WrapPin uses the local network to securely pair with and control this iPhone through LocalDevVPN.</string>
+	<string>WrapPin uses the local network to pair with and connect to this iPhone through a compatible device tunnel.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>WrapPin uses Location Services to keep an active test session running in the background and to return the map to your real position after it stops.</string>
 	<key>UIBackgroundModes</key>

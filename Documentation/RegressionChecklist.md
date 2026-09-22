@@ -56,7 +56,17 @@ Use this checklist before packaging an IPA or declaring a development build stab
 - [ ] Stop & Restore requires confirmation, then restores the real location.
 - [ ] The blue background-location indicator appears only while a simulation is active and disappears after Stop & Restore.
 
-## Fixed location on mobile data
+### Tunnel app handoff (new branch; physical device required)
+
+- [ ] LocalDevVPN is the default; choosing Shadowrocket persists across launch, and reset restores the default.
+- [ ] On Wi-Fi, a currently reachable paired device causes no handoff and an unreachable one opens the selected app. On mobile data, LocalDevVPN keeps its original connect-and-return flow; Shadowrocket opens without enabling its VPN.
+- [ ] After a successful session, stopping and starting again rechecks reachability on Wi-Fi. LocalDevVPN still opens once per mobile-data startup.
+- [ ] Shadowrocket on mobile data recommends switching to Wi-Fi after connection failure and never shows the LocalDevVPN mobile-data-off step; LocalDevVPN guidance remains unchanged.
+- [ ] Returning after manually enabling a compatible tunnel resumes discovery; a missing or unsupported app-link scheme shows an error and the selected app's store link.
+- [ ] Fixed, walking and driving sessions use the same startup path. A Shadowrocket proxy without local device pairing reachability must not be reported as connected.
+
+## Fixed location on mobile data (LocalDevVPN)
+
 
 - [ ] WrapPin opens LocalDevVPN when needed.
 - [ ] Turn Mobile Data Off appears only for the mobile-data path.

@@ -43,7 +43,11 @@ Tap **Stop & Restore** when you want iOS to return to the real location, then co
 
 ## Wi-Fi connection flow
 
-When Wi-Fi is connected, WrapPin looks for the iPhone through LocalDevVPN immediately.
+**Settings → Tunnel App** selects LocalDevVPN (the default) or Shadowrocket. On Wi-Fi, WrapPin checks whether it can reach the paired iPhone and opens the selected app only if that connection fails. On mobile data, LocalDevVPN retains its original connect-and-return startup flow, so it still opens once; Shadowrocket is opened only after the device connection cannot be established. WrapPin cannot inspect either app's VPN switch directly.
+
+The Shadowrocket option selects a handoff destination only. An ordinary proxy profile does not necessarily expose the local remote-pairing service. On mobile data, that device connection may fail even when Shadowrocket appears connected; switch to Wi-Fi and try again. If Wi-Fi also fails the connection check, keep LocalDevVPN as the default. Shadowrocket's profile and network combinations have not all been verified on physical devices.
+
+When Wi-Fi is connected, WrapPin looks for the paired iPhone through a compatible device tunnel immediately. LocalDevVPN remains the supported default.
 
 - If LocalDevVPN is already connected, the location should start without mobile-data instructions.
 - If its tunnel is unavailable, WrapPin opens LocalDevVPN automatically and returns to the pending session.
@@ -53,7 +57,7 @@ Do not choose **I'm Using Mobile Data** while connected to Wi-Fi.
 
 ## Mobile-data connection flow
 
-When the iPhone is using 4G or 5G:
+When the iPhone is using 4G or 5G with LocalDevVPN:
 
 1. Start the selected location.
 2. WrapPin opens LocalDevVPN if necessary.
@@ -62,7 +66,7 @@ When the iPhone is using 4G or 5G:
 5. If automatic detection does not continue, tap **Continue** as the manual backup.
 6. When **Turn Mobile Data Back On** appears, restore mobile data and tap **Done**.
 
-Only startup needs this temporary change. After the secure location session is active, it can continue while mobile data is back on.
+Only LocalDevVPN startup needs this temporary change. After the secure location session is active, it can continue while mobile data is back on. Shadowrocket does not use this mobile-data-off guidance; if it cannot connect over mobile data, use Wi-Fi instead.
 
 ## Walking routes
 

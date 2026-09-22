@@ -42,7 +42,7 @@ enum DeviceSessionConnectionStage: Equatable, Sendable {
         switch self {
         case .idle: String(localized: "Idle")
         case .choosingNetwork: String(localized: "Checking network")
-        case .openingLocalDevVPN: String(localized: "Opening LocalDevVPN")
+        case .openingLocalDevVPN: String(localized: "Opening tunnel app")
         case .discoveringDevice: String(localized: "Discovering this iPhone")
         case .verifyingDevice: String(localized: "Verifying paired device")
         case .waitingForSystem: String(localized: "Waiting for system resources")
@@ -84,7 +84,6 @@ final class LocalDeviceSessionCoordinator: NSObject {
     }
 
     private static let localDevVPNPeerAddress = "10.7.0.1"
-    private static let enableURL = URL(string: "localdevvpn://enable?scheme=wrappin")!
     private static let minimumRestorationDisplayDuration: TimeInterval = 1.2
 
     private(set) var phase: DeviceSessionPhase = .idle {
@@ -109,6 +108,14 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
     }
     let backgroundKeepAlive = BackgroundLocationKeepAlive()
+    var tunnelHandoffApp: TunnelHandoffApp = .localDevVPN {
+        didSet {
+            if tunnelHandoffApp != oldValue {
+                hasReachedDeviceTunnel = false
+            }
+        }
+    }
+    var isUsingMobileDataForStartup: Bool { isMobileDataStartupMode }
     private(set) var connectionStage: DeviceSessionConnectionStage = .idle
     private(set) var endpointSource: DeviceEndpointSource?
     private(set) var lastFailureMessage: String?
@@ -143,13 +150,14 @@ final class LocalDeviceSessionCoordinator: NSObject {
     private var networkDecisionTask: Task<Void, Never>?
     private var mobileDataDiscoveryLoopTask: Task<Void, Never>?
     private var mobileDataGuidanceDelay: Task<Void, Never>?
-    private var localDevVPNProbeTask: Task<Void, Never>?
+    private var tunnelAppProbeTask: Task<Void, Never>?
     private var localDevVPNReturnTimeout: Task<Void, Never>?
     private var pendingSession: PendingSession?
     private var resolvedService: RemotePairingService?
     private var sawNonMatchingService = false
     private var isDiscoveringServices = false
-    private var hasRequestedLocalDevVPNThisAttempt = false
+    private var hasOpenedTunnelAppThisAttempt = false
+    private var hasReachedDeviceTunnel = false
     private var wifiPathStatusIsKnown = false
     private var isWiFiPathSatisfied = false
     private var isMobileDataStartupMode = false
@@ -214,7 +222,9 @@ final class LocalDeviceSessionCoordinator: NSObject {
         connectionStage = .choosingNetwork
         restorationDisplayStartDate = nil
         mobileDataGuidance = nil
-        hasRequestedLocalDevVPNThisAttempt = false
+        hasOpenedTunnelAppThisAttempt = false
+        // Reachability from a previous location session says nothing about the tunnel now.
+        hasReachedDeviceTunnel = false
         isMobileDataStartupMode = false
         pendingSession = PendingSession(pairingRecord: pairingRecord, target: target)
         resolvedService = nil
@@ -231,11 +241,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         localDevVPNReturnTimeout?.cancel()
         localDevVPNReturnTimeout = nil
         guard mobileDataGuidance != .turnOff else { return }
-        if isMobileDataStartupMode {
-            enterMobileDataGuidance()
-        } else {
-            beginDiscovery(showConnectionHelpIfUnavailable: true)
-        }
+        resumeAfterTunnelApp()
     }
 
     @discardableResult
@@ -261,17 +267,17 @@ final class LocalDeviceSessionCoordinator: NSObject {
         return .updated
     }
 
-    func openLocalDevVPN() {
+    func openSelectedTunnelApp() {
 #if !targetEnvironment(simulator)
         if pendingSession != nil, !workerIsRunning {
-            openLocalDevVPNForPendingSession()
+            openSelectedTunnelAppForPendingSession()
             return
         }
 
-        UIApplication.shared.open(Self.enableURL) { [weak self] opened in
+        UIApplication.shared.open(tunnelHandoffApp.launchURL) { [weak self] opened in
             guard !opened else { return }
             Task { @MainActor in
-                self?.fail("Install LocalDevVPN before starting a location session.")
+                self?.fail("Could not open the selected tunnel app. Check that it is installed and supports app links.")
             }
         }
 #endif
@@ -296,6 +302,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
     func useMobileDataGuidance() {
         guard mobileDataGuidance == .connectionHelp, pendingSession != nil else { return }
+        guard TunnelHandoffPolicy.offersMobileDataWorkaround(for: tunnelHandoffApp) else { return }
         isMobileDataStartupMode = true
         enterMobileDataGuidance()
     }
@@ -303,6 +310,9 @@ final class LocalDeviceSessionCoordinator: NSObject {
     func retryConnection() {
         guard mobileDataGuidance == .connectionHelp, pendingSession != nil else { return }
         onConnectionEvent?(retryTelemetry.selected())
+        if tunnelHandoffApp == .shadowrocket {
+            isMobileDataStartupMode = wifiPathStatusIsKnown && !isWiFiPathSatisfied
+        }
         mobileDataGuidance = nil
         resolvedService = nil
         beginDiscovery(showConnectionHelpIfUnavailable: true)
@@ -326,11 +336,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
                 else { return }
 
                 self.automaticDiscoveryTask = nil
-                if self.isMobileDataStartupMode {
-                    self.enterMobileDataGuidance()
-                } else {
-                    self.beginDiscovery(showConnectionHelpIfUnavailable: true)
-                }
+                self.resumeAfterTunnelApp()
             }
             return
         }
@@ -390,7 +396,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
     // Retry once per start; never turn this into an unbounded recovery loop.
     private func showConnectionHelp() {
         guard pendingSession != nil, !workerIsRunning else { return }
-        guard hasRequestedLocalDevVPNThisAttempt, !isMobileDataStartupMode,
+        guard hasOpenedTunnelAppThisAttempt, !isMobileDataStartupMode,
               !vpnReturnRetryUsed else {
             mobileDataGuidance = .connectionHelp
             return
@@ -421,7 +427,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
     private func beginDiscovery(
         reportTimeout: Bool = true,
-        openLocalDevVPNIfUnavailable: Bool = false,
+        openTunnelAppIfUnavailable: Bool = false,
         showConnectionHelpIfUnavailable: Bool = false
     ) {
         cleanupDiscovery()
@@ -447,20 +453,22 @@ final class LocalDeviceSessionCoordinator: NSObject {
             }
         }
 
-        if openLocalDevVPNIfUnavailable {
-            localDevVPNProbeTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(2.5))
+        if openTunnelAppIfUnavailable {
+            tunnelAppProbeTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(8))
                 guard
                     !Task.isCancelled,
                     let self,
                     self.pendingSession != nil,
                     self.phase == .discovering,
                     !self.workerIsRunning,
-                    self.resolvedService == nil
+                    self.resolvedService == nil,
+                    self.serviceProbeConnection == nil,
+                    !self.hasReachedDeviceTunnel
                 else { return }
 
-                self.localDevVPNProbeTask = nil
-                self.openLocalDevVPNForPendingSession()
+                self.tunnelAppProbeTask = nil
+                self.openSelectedTunnelAppForPendingSession()
             }
         }
 
@@ -468,13 +476,15 @@ final class LocalDeviceSessionCoordinator: NSObject {
             discoveryTimeout = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(30))
                 guard !Task.isCancelled, let self, self.phase == .discovering else { return }
-                if self.sawNonMatchingService {
+                if !self.hasOpenedTunnelAppThisAttempt && !self.hasReachedDeviceTunnel {
+                    self.openSelectedTunnelAppForPendingSession()
+                } else if self.sawNonMatchingService {
                     self.fail(
-                        "WrapPin found an outdated device announcement. Toggle LocalDevVPN off and on, then try again."
+                        "WrapPin found an outdated device announcement. Restart the selected tunnel and try again."
                     )
                 } else {
                     self.fail(
-                        "WrapPin could not find this iPhone through LocalDevVPN. Check that the tunnel is enabled and try again."
+                        "WrapPin could not find this iPhone through the device tunnel. Check the selected tunnel and try again."
                     )
                 }
             }
@@ -691,13 +701,14 @@ final class LocalDeviceSessionCoordinator: NSObject {
                 lastFailureDisposition = .recoverable
                 onRecoveryNeeded?(stage)
                 resolvedService = nil
-                if isMobileDataStartupMode {
+                if isMobileDataStartupMode &&
+                    TunnelHandoffPolicy.offersMobileDataWorkaround(for: tunnelHandoffApp) {
                     enterMobileDataGuidance()
-                } else if hasRequestedLocalDevVPNThisAttempt {
+                } else if !hasOpenedTunnelAppThisAttempt && !hasReachedDeviceTunnel {
+                    openSelectedTunnelAppForPendingSession()
+                } else {
                     phase = .discovering
                     showConnectionHelp()
-                } else {
-                    openLocalDevVPNForPendingSession()
                 }
                 return
             }
@@ -740,8 +751,8 @@ final class LocalDeviceSessionCoordinator: NSObject {
         discoveryTimeout = nil
         mobileDataGuidanceDelay?.cancel()
         mobileDataGuidanceDelay = nil
-        localDevVPNProbeTask?.cancel()
-        localDevVPNProbeTask = nil
+        tunnelAppProbeTask?.cancel()
+        tunnelAppProbeTask = nil
         browser.stop()
 
         for service in discoveredServices {
@@ -819,6 +830,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
         if reachable {
             serviceProbeAttemptCount = 0
+            hasReachedDeviceTunnel = true
             resolvedService = service
             endpointSource = service.endpointSource
             mobileDataDiscoveryLoopTask?.cancel()
@@ -851,14 +863,17 @@ final class LocalDeviceSessionCoordinator: NSObject {
             return
         }
 
-        if isMobileDataStartupMode {
+        if !hasOpenedTunnelAppThisAttempt && !hasReachedDeviceTunnel {
             serviceProbeAttemptCount = 0
+            openSelectedTunnelAppForPendingSession()
             return
         }
 
-        if !hasRequestedLocalDevVPNThisAttempt {
+        if isMobileDataStartupMode {
             serviceProbeAttemptCount = 0
-            openLocalDevVPNForPendingSession()
+            if tunnelHandoffApp == .shadowrocket {
+                showConnectionHelp()
+            }
             return
         }
 
@@ -902,7 +917,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         pendingSession = nil
         resolvedService = nil
         backgroundKeepAlive.stop()
-        hasRequestedLocalDevVPNThisAttempt = false
+        hasOpenedTunnelAppThisAttempt = false
         isMobileDataStartupMode = false
     }
 
@@ -935,11 +950,16 @@ final class LocalDeviceSessionCoordinator: NSObject {
         mobileDataGuidance = nil
 
         if wifiPathStatusIsKnown {
-            if isWiFiPathSatisfied {
-                beginDiscovery(openLocalDevVPNIfUnavailable: true)
-            } else {
+            if TunnelHandoffPolicy.requiresLocalDevVPNCellularHandoff(
+                app: tunnelHandoffApp,
+                isWiFiPathKnown: wifiPathStatusIsKnown,
+                isWiFiSatisfied: isWiFiPathSatisfied
+            ) {
                 isMobileDataStartupMode = true
-                openLocalDevVPNForPendingSession()
+                openSelectedTunnelAppForPendingSession()
+            } else {
+                isMobileDataStartupMode = !isWiFiPathSatisfied
+                beginDiscovery(openTunnelAppIfUnavailable: true)
             }
             return
         }
@@ -954,11 +974,16 @@ final class LocalDeviceSessionCoordinator: NSObject {
             else { return }
 
             self.networkDecisionTask = nil
-            if self.wifiPathStatusIsKnown, !self.isWiFiPathSatisfied {
+            if TunnelHandoffPolicy.requiresLocalDevVPNCellularHandoff(
+                app: self.tunnelHandoffApp,
+                isWiFiPathKnown: self.wifiPathStatusIsKnown,
+                isWiFiSatisfied: self.isWiFiPathSatisfied
+            ) {
                 self.isMobileDataStartupMode = true
-                self.openLocalDevVPNForPendingSession()
+                self.openSelectedTunnelAppForPendingSession()
             } else {
-                self.beginDiscovery(openLocalDevVPNIfUnavailable: true)
+                self.isMobileDataStartupMode = self.wifiPathStatusIsKnown && !self.isWiFiPathSatisfied
+                self.beginDiscovery(openTunnelAppIfUnavailable: true)
             }
         }
     }
@@ -969,6 +994,19 @@ final class LocalDeviceSessionCoordinator: NSObject {
         phase = .discovering
         mobileDataGuidance = .turnOff
         startMobileDataDiscoveryLoop()
+    }
+
+    private func resumeAfterTunnelApp() {
+        guard pendingSession != nil, !workerIsRunning else { return }
+        if tunnelHandoffApp == .shadowrocket && wifiPathStatusIsKnown {
+            isMobileDataStartupMode = !isWiFiPathSatisfied
+        }
+        if isMobileDataStartupMode &&
+            TunnelHandoffPolicy.offersMobileDataWorkaround(for: tunnelHandoffApp) {
+            enterMobileDataGuidance()
+        } else {
+            beginDiscovery(showConnectionHelpIfUnavailable: true)
+        }
     }
 
     private func startMobileDataDiscoveryLoop() {
@@ -997,19 +1035,21 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
     }
 
-    private func openLocalDevVPNForPendingSession() {
+    private func openSelectedTunnelAppForPendingSession() {
 #if !targetEnvironment(simulator)
         guard pendingSession != nil, !workerIsRunning else { return }
+        mobileDataDiscoveryLoopTask?.cancel()
+        mobileDataDiscoveryLoopTask = nil
         cleanupDiscovery()
         mobileDataGuidance = nil
-        hasRequestedLocalDevVPNThisAttempt = true
+        hasOpenedTunnelAppThisAttempt = true
         phase = .openingLocalDevVPN
         connectionStage = .openingLocalDevVPN
 
-        UIApplication.shared.open(Self.enableURL) { [weak self] opened in
+        UIApplication.shared.open(tunnelHandoffApp.launchURL) { [weak self] opened in
             guard !opened else { return }
             Task { @MainActor in
-                self?.fail("Install LocalDevVPN before starting a location session.")
+                self?.fail("Could not open the selected tunnel app. Check that it is installed and supports app links.")
             }
         }
 #endif

@@ -4,7 +4,9 @@ struct MobileDataGuidanceView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let guidance: MobileDataGuidance
-    let onOpenLocalDevVPN: () -> Void
+    let tunnelHandoffApp: TunnelHandoffApp
+    let isUsingMobileData: Bool
+    let onOpenTunnelApp: () -> Void
     let onRetry: () -> Void
     let onUseMobileData: () -> Void
     let onMobileDataOff: () -> Void
@@ -12,15 +14,12 @@ struct MobileDataGuidanceView: View {
     let onDone: () -> Void
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                ScrollView(.vertical, showsIndicators: false) {
-                    content
-                }
-                .frame(maxHeight: 540)
-            } else {
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView(.vertical, showsIndicators: false) {
                 content
             }
+            .frame(maxHeight: 540)
         }
         .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 20 : 28)
         .padding(.top, 12)
@@ -72,7 +71,7 @@ struct MobileDataGuidanceView: View {
 
             if guidance == .connectionHelp {
                 Label(
-                    "WrapPin has not found LocalDevVPN's device connection yet.",
+                    "WrapPin has not found the paired iPhone's device connection yet.",
                     systemImage: "lock.shield"
                 )
                 .font(.caption)
@@ -85,11 +84,13 @@ struct MobileDataGuidanceView: View {
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
 
-                Button("Open LocalDevVPN", action: onOpenLocalDevVPN)
+                Button(openTunnelAppTitle, action: onOpenTunnelApp)
                     .buttonStyle(.bordered)
 
-                Button("I'm Using Mobile Data", action: onUseMobileData)
-                    .buttonStyle(.bordered)
+                if TunnelHandoffPolicy.offersMobileDataWorkaround(for: tunnelHandoffApp) {
+                    Button("I'm Using Mobile Data", action: onUseMobileData)
+                        .buttonStyle(.bordered)
+                }
 
                 Button("Cancel", role: .cancel, action: onCancel)
                     .foregroundStyle(.secondary)
@@ -117,7 +118,7 @@ struct MobileDataGuidanceView: View {
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
 
-                Button("Open LocalDevVPN", action: onOpenLocalDevVPN)
+                Button(openTunnelAppTitle, action: onOpenTunnelApp)
                     .buttonStyle(.bordered)
 
                 Button("Cancel", role: .cancel, action: onCancel)
@@ -138,7 +139,11 @@ struct MobileDataGuidanceView: View {
     private var title: String {
         switch guidance {
         case .connectionHelp:
-            String(localized: "Still Connecting")
+            if tunnelHandoffApp == .shadowrocket && isUsingMobileData {
+                String(localized: "Use Wi-Fi with Shadowrocket")
+            } else {
+                String(localized: "Still Connecting")
+            }
         case .turnOff:
             String(localized: "Turn Mobile Data Off")
         case .turnBackOn:
@@ -149,12 +154,20 @@ struct MobileDataGuidanceView: View {
     private var message: String {
         switch guidance {
         case .connectionHelp:
-            String(localized: "If you're on Wi‑Fi, make sure LocalDevVPN says Connected, then try again. Choose mobile data only when you're actually using 4G or 5G.")
+            if tunnelHandoffApp == .shadowrocket && isUsingMobileData {
+                String(localized: "Shadowrocket may not provide the device connection WrapPin needs over mobile data. Connect to Wi-Fi, keep a compatible tunnel on, then return and try again.")
+            } else {
+                String(localized: "Make sure the selected app's tunnel is connected, then try again. Choose mobile data only when you're actually using 4G or 5G.")
+            }
         case .turnOff:
             String(localized: "Make sure LocalDevVPN is connected, switch mobile data off briefly, then return to WrapPin.")
         case .turnBackOn:
             String(localized: "The secure location session is ready. You can restore mobile data now; spoofing will continue over 5G.")
         }
+    }
+
+    private var openTunnelAppTitle: String {
+        String(format: NSLocalizedString("Open %@", comment: ""), tunnelHandoffApp.title)
     }
 
     private var iconColours: [Color] {

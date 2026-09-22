@@ -35,7 +35,11 @@ final class ConnectionDiagnosticsCoordinator: NSObject {
         browser.includesPeerToPeer = true
     }
 
-    func run(pairingRecord: Data?, sessionPhase: DeviceSessionPhase) {
+    func run(
+        pairingRecord: Data?,
+        sessionPhase: DeviceSessionPhase,
+        tunnelHandoffApp: TunnelHandoffApp
+    ) {
         cancel(resetState: false)
 
         guard let pairingRecord else {
@@ -55,7 +59,7 @@ final class ConnectionDiagnosticsCoordinator: NSObject {
         }
 
 #if targetEnvironment(simulator)
-        finish(.failed("LocalDevVPN reachability can only be checked on a physical iPhone."))
+        finish(.failed("Device tunnel reachability can only be checked on a physical iPhone."))
 #else
         self.pairingRecord = pairingRecord
         sawNonMatchingService = false
@@ -70,15 +74,16 @@ final class ConnectionDiagnosticsCoordinator: NSObject {
 
             if self.sawMatchingUnreachableService {
                 self.finish(.failed(
-                    "The paired iPhone was announced, but its LocalDevVPN address was not reachable. Reconnect LocalDevVPN and check its device and tunnel IP settings."
+                    "The paired iPhone was announced, but its tunnel address was not reachable. Reconnect the selected tunnel and check its device and tunnel IP settings."
                 ))
             } else if self.sawNonMatchingService {
                 self.finish(.failed(
-                    "LocalDevVPN is visible, but its device announcement does not match the paired iPhone. Toggle LocalDevVPN off and on, then try again."
+                    "A device announcement is visible, but it does not match the paired iPhone. Restart the selected tunnel and try again."
                 ))
             } else {
-                self.finish(.failed(
-                    "This iPhone was not reachable through LocalDevVPN. Check that the tunnel is connected. On mobile data, switch data off briefly and run the check again."
+                self.finish(.failed(tunnelHandoffApp == .shadowrocket
+                    ? "This iPhone was not reachable through the device tunnel. If you are using Shadowrocket on mobile data, connect to Wi-Fi and run the check again."
+                    : "This iPhone was not reachable through the device tunnel. Check that a compatible tunnel is connected. On mobile data, switch data off briefly and run the check again."
                 ))
             }
         }
@@ -257,7 +262,7 @@ final class ConnectionDiagnosticsCoordinator: NSObject {
         connection.cancel()
 
         if reachable {
-            finish(.passed("The pairing record is valid and this iPhone is reachable through LocalDevVPN."))
+            finish(.passed("The pairing record is valid and this iPhone is reachable through the device tunnel."))
         } else if let fallbackHost {
             probe(host: fallbackHost, port: port, fallbackHost: nil)
         } else {

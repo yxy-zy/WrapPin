@@ -13,14 +13,14 @@
 </p>
 
 <p align="center">
-  <strong>当前版本：</strong>1.0.5（Build 6） · <strong>系统要求：</strong>iOS 27+
+  <strong>当前公开版本：</strong>以 GitHub Releases 为准 · <strong>系统要求：</strong>iOS 27+
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/iOS-27%2B-blue" alt="iOS 27+">
   <img src="https://img.shields.io/badge/UI-SwiftUI-orange" alt="SwiftUI">
   <img src="https://img.shields.io/badge/%E7%BB%B4%E6%8A%A4%E8%80%85-suversal-purple" alt="由 suversal 维护">
-  <img src="https://img.shields.io/badge/Version-1.0.5-lightgrey" alt="Version 1.0.5">
+  <img src="https://img.shields.io/badge/Experiment-Shadowrocket-orange" alt="Shadowrocket experiment">
   <img src="https://img.shields.io/badge/License-PolyForm%20NC%201.0.0-blue" alt="PolyForm Noncommercial 1.0.0">
 </p>
 
@@ -28,19 +28,19 @@ WrapPin 是 Sean Howarth 原项目 [Roam Control](https://github.com/seanhowarth
 
 如果这个项目帮到了你，欢迎点一个 **Star**；如果你发现界面、文案、兼容性或连接流程还有改进空间，也欢迎提交 Issue 或 Pull Request。贡献前请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-项目面向开发、质量测试和个人负责任测试，支持固定位置、步行路线、收藏与历史记录，并通过本机配对和 LocalDevVPN 建立安全的开发者定位会话。
+项目面向开发、质量测试和个人负责任测试，支持固定位置、步行路线、收藏与历史记录，并通过本机配对和兼容的设备隧道建立安全的开发者定位会话。默认使用 LocalDevVPN；设置中的 Shadowrocket 选项只决定跳转目标，不保证普通代理配置能提供所需的设备连接。
 
 > 请只在你拥有并控制的设备上使用。不要用于欺骗他人、伪造证据、规避安全限制，或违反第三方服务规则。
 
 ## 当前进展
 
-- 当前公开版本为 **1.0.5（Build 6）**。
+- 本实验分支为 **1.0.8（Build 16）**；正式公开版本以 GitHub Releases 为准。
 - 已完成完整简体中文界面、地图标签本地化、配对与连接引导、中文安装文档和使用手册。
 - 已完善地址与坐标复制、连接检测、诊断信息复制、异常会话恢复和真实位置恢复流程。
 - 已修复长时间本机配对容易中断，以及误连 USB/Wi-Fi `169.254.x.x` 链路本地地址的问题；已优先使用 LocalDevVPN 端点。
 - 已使用正式 Xcode Release Archive 流程生成并校验可供 SideStore 签名的未签名 IPA。
 - 已验证前台固定位置、模拟步行和停止恢复流程；长时间锁屏保持仍需更多机型和系统版本测试。
-- 1.0.5 改善了国内外地图选点的地址解析，修复“正在查找附近地址…”被保存到历史记录的问题，并在无法获取地址时显示精确经纬度。
+- 本实验分支可选择设备隧道跳转应用，并改进连接失败时的引导；先验证 Wi-Fi 下的 Shadowrocket 设备通道。
 
 ## 界面预览
 
@@ -63,6 +63,7 @@ WrapPin 是 Sean Howarth 原项目 [Roam Control](https://github.com/seanhowarth
 - 保存常用地点，快速访问最近使用的位置。
 - 会话结束时主动清除模拟坐标并恢复真实位置。
 - 为 Wi-Fi 和蜂窝网络提供分开的连接引导与诊断。
+- 在设置中选择 LocalDevVPN 或 Shadowrocket 作为连接不可用时的跳转应用。
 - 可在设置中检查公开版本、查看 GitHub 仓库、反馈问题、提交功能建议或关注维护者。
 - 支持深浅色外观、不同地图样式、动态字体、VoiceOver 和“减弱动态效果”。
 
@@ -73,7 +74,7 @@ WrapPin 走的是 iOS 的**开发者位置模拟通道**，不是通过代理伪
 ```mermaid
 flowchart TD
     A[在 WrapPin 中选择坐标或步行路线] --> B[读取保存在本机钥匙串中的 RPPairing 记录]
-    B --> C[通过 LocalDevVPN 发现同一台 iPhone 的远程配对服务]
+    B --> C[通过兼容的设备隧道发现同一台 iPhone 的远程配对服务]
     C --> D[校验设备身份并建立加密开发者隧道]
     D --> E[连接 iOS LocationSimulation 服务]
     E --> F[设置或持续更新模拟坐标]

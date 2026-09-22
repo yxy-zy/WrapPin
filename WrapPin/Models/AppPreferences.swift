@@ -1,5 +1,41 @@
 import Foundation
 
+enum TunnelHandoffApp: String, CaseIterable, Identifiable {
+    case localDevVPN
+    case shadowrocket
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .localDevVPN: "LocalDevVPN"
+        case .shadowrocket: "Shadowrocket"
+        }
+    }
+
+    // Keep LocalDevVPN's working enable-and-return callback; Shadowrocket only opens its app.
+    var launchURL: URL {
+        switch self {
+        case .localDevVPN: URL(string: "localdevvpn://enable?scheme=wrappin")!
+        case .shadowrocket: URL(string: "shadowrocket://")!
+        }
+    }
+}
+
+enum TunnelHandoffPolicy {
+    static func offersMobileDataWorkaround(for app: TunnelHandoffApp) -> Bool {
+        app == .localDevVPN
+    }
+
+    static func requiresLocalDevVPNCellularHandoff(
+        app: TunnelHandoffApp,
+        isWiFiPathKnown: Bool,
+        isWiFiSatisfied: Bool
+    ) -> Bool {
+        app == .localDevVPN && isWiFiPathKnown && !isWiFiSatisfied
+    }
+}
+
 enum AppAppearance: String, CaseIterable, Identifiable {
     case automatic
     case light

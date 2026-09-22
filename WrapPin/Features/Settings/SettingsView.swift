@@ -66,6 +66,21 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Picker("Tunnel App", selection: tunnelHandoffAppBinding) {
+                        ForEach(TunnelHandoffApp.allCases) { app in
+                            Text(app.title).tag(app)
+                        }
+                    }
+                    .accessibilityHint("Selects the app to open when WrapPin cannot reach the paired iPhone.")
+                } footer: {
+                    if appModel.tunnelHandoffApp == .shadowrocket {
+                        Text("WrapPin opens Shadowrocket only when it cannot find the paired iPhone's device connection. On mobile data, this connection may fail even with Shadowrocket on; use Wi-Fi for location simulation. The selection does not guarantee a compatible device tunnel.")
+                    } else {
+                        Text("On Wi-Fi, WrapPin opens LocalDevVPN if the paired iPhone is unreachable. On mobile data, it uses LocalDevVPN's connect-and-return flow before continuing. If it does not return automatically, check its tunnel and come back to WrapPin.")
+                    }
+                }
+
+                Section {
                     Toggle(
                         "Share Anonymous Usage Statistics",
                         isOn: anonymousUsageStatisticsBinding
@@ -284,6 +299,13 @@ struct SettingsView: View {
         Binding(
             get: { appModel.mapDisplayStyle },
             set: appModel.setMapDisplayStyle
+        )
+    }
+
+    private var tunnelHandoffAppBinding: Binding<TunnelHandoffApp> {
+        Binding(
+            get: { appModel.tunnelHandoffApp },
+            set: appModel.setTunnelHandoffApp
         )
     }
 

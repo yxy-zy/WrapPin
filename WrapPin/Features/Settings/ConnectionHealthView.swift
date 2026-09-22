@@ -19,7 +19,7 @@ struct ConnectionHealthView: View {
                 )
 
                 healthRow(
-                    title: String(localized: "LocalDevVPN"),
+                    title: String(localized: "Device Tunnel"),
                     value: localDevVPNValue,
                     symbol: localDevVPNSymbol,
                     color: localDevVPNColor
@@ -111,7 +111,7 @@ struct ConnectionHealthView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("Check LocalDevVPN, then run the connection check or try starting the location again.")
+                        Text("Check the selected tunnel app, then run the connection check or try starting the location again.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -129,7 +129,7 @@ struct ConnectionHealthView: View {
             } header: {
                 Text("Connection Check")
             } footer: {
-                Text("This checks the saved pairing record and whether the paired iPhone is visible through LocalDevVPN. It never starts, changes, or stops your location.")
+                Text("This checks the saved pairing record and whether the paired iPhone is reachable through a compatible device tunnel. It cannot inspect another app's VPN switch or change your location.")
             }
 
             Section {
@@ -150,9 +150,11 @@ struct ConnectionHealthView: View {
             }
 
             Section("Other VPNs") {
-                Text("Another VPN may affect local device connections. If it is appropriate for your network, compare a test with that VPN paused. Keep LocalDevVPN enabled when starting a location session.")
-                Text("WrapPin has not detected another VPN. This is a troubleshooting check, not a diagnosis.")
-                    .foregroundStyle(.secondary)
+                Text("Another VPN may affect local device connections. Keep a compatible device tunnel enabled when starting a location session; a regular proxy alone may not work.")
+                if appModel.tunnelHandoffApp == .shadowrocket {
+                    Text("Shadowrocket on mobile data may not expose the device connection WrapPin needs. Use Wi-Fi if the connection check fails.")
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Help") {
@@ -163,8 +165,11 @@ struct ConnectionHealthView: View {
                 }
                 .foregroundStyle(.primary)
 
-                Link(destination: appModel.localDevVPNInstallURL) {
-                    Label("Open LocalDevVPN in App Store", systemImage: "arrow.up.right.square")
+                Link(destination: appModel.selectedTunnelAppInstallURL) {
+                    Label(
+                        String(format: NSLocalizedString("Get %@", comment: ""), appModel.tunnelHandoffApp.title),
+                        systemImage: "arrow.up.right.square"
+                    )
                 }
             }
         }
@@ -255,7 +260,7 @@ struct ConnectionHealthView: View {
     private var sessionValue: String {
         switch appModel.deviceSession.phase {
         case .idle: String(localized: "Inactive")
-        case .openingLocalDevVPN: String(localized: "Opening LocalDevVPN")
+        case .openingLocalDevVPN: String(localized: "Opening tunnel app")
         case .discovering: String(localized: "Finding this iPhone")
         case .connecting: String(localized: "Connecting")
         case .active: String(localized: "Active")
@@ -372,10 +377,15 @@ struct ConnectionHealthView: View {
             let pairingRecord = try await appModel.pairingService.pairingRecordData()
             diagnostics.run(
                 pairingRecord: pairingRecord,
-                sessionPhase: appModel.deviceSession.phase
+                sessionPhase: appModel.deviceSession.phase,
+                tunnelHandoffApp: appModel.tunnelHandoffApp
             )
         } catch {
-            diagnostics.run(pairingRecord: nil, sessionPhase: appModel.deviceSession.phase)
+            diagnostics.run(
+                pairingRecord: nil,
+                sessionPhase: appModel.deviceSession.phase,
+                tunnelHandoffApp: appModel.tunnelHandoffApp
+            )
         }
     }
 
@@ -394,7 +404,7 @@ struct ConnectionHealthView: View {
         iOS: \(UIDevice.current.systemVersion)
         Pairing: \(pairingValue)
         Last pairing failure stage (this launch): \(appModel.onDevicePairing.lastFailureStage?.rawValue ?? "None")
-        LocalDevVPN: \(localDevVPNValue)
+        Device tunnel: \(localDevVPNValue)
         Session: \(sessionValue)
         Background session: \(appModel.deviceSession.backgroundKeepAlive.status.rawValue)
         Background session started: \(appModel.deviceSession.backgroundKeepAlive.started)

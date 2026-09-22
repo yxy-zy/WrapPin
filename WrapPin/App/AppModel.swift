@@ -10,6 +10,7 @@ final class AppModel {
     private static let historyKey = "locationHistory"
     private static let appearanceKey = "appAppearance"
     private static let mapDisplayStyleKey = "mapDisplayStyle"
+    private static let tunnelHandoffAppKey = "tunnelHandoffApp"
     private static let activeSessionRecoveryKey = "activeSessionRecovery"
     private static let anonymousUsageStatisticsKey = "sharesAnonymousUsageStatistics"
 
@@ -25,6 +26,7 @@ final class AppModel {
     private(set) var locationHistory: [LocationTarget]
     private(set) var appearance: AppAppearance
     private(set) var mapDisplayStyle: MapDisplayStyle
+    private(set) var tunnelHandoffApp: TunnelHandoffApp
     private(set) var sharesAnonymousUsageStatistics: Bool
     private(set) var interruptedSession: SessionRecoveryRecord?
     private(set) var isRestoringInterruptedSession = false
@@ -42,6 +44,12 @@ final class AppModel {
     let deviceSession: LocalDeviceSessionCoordinator
     private let usageAnalytics: UsageAnalyticsService
     let localDevVPNInstallURL = URL(string: "https://apps.apple.com/app/localdevvpn/id6755608044")!
+    var selectedTunnelAppInstallURL: URL {
+        switch tunnelHandoffApp {
+        case .localDevVPN: localDevVPNInstallURL
+        case .shadowrocket: URL(string: "https://apps.apple.com/app/shadowrocket/id932747118")!
+        }
+    }
 
     init(
         pairingService: any PairingService = SecurePairingService(),
@@ -63,10 +71,14 @@ final class AppModel {
         self.mapDisplayStyle = MapDisplayStyle(
             rawValue: preferences.string(forKey: Self.mapDisplayStyleKey) ?? ""
         ) ?? .standard
+        self.tunnelHandoffApp = TunnelHandoffApp(
+            rawValue: preferences.string(forKey: Self.tunnelHandoffAppKey) ?? ""
+        ) ?? .localDevVPN
         self.sharesAnonymousUsageStatistics = Self.initialUsageStatisticsPreference(
             in: preferences
         )
         self.interruptedSession = Self.recoveryRecord(in: preferences)
+        self.deviceSession.tunnelHandoffApp = tunnelHandoffApp
 
         onDevicePairing.onFailure = { [weak self] stage in
             guard let self else { return }
@@ -206,6 +218,12 @@ final class AppModel {
         preferences.set(style.rawValue, forKey: Self.mapDisplayStyleKey)
     }
 
+    func setTunnelHandoffApp(_ app: TunnelHandoffApp) {
+        tunnelHandoffApp = app
+        deviceSession.tunnelHandoffApp = app
+        preferences.set(app.rawValue, forKey: Self.tunnelHandoffAppKey)
+    }
+
     func setSharesAnonymousUsageStatistics(_ enabled: Bool) {
         sharesAnonymousUsageStatistics = enabled
         preferences.set(enabled, forKey: Self.anonymousUsageStatisticsKey)
@@ -252,6 +270,8 @@ final class AppModel {
         locationHistory = []
         appearance = .automatic
         mapDisplayStyle = .standard
+        tunnelHandoffApp = .localDevVPN
+        deviceSession.tunnelHandoffApp = .localDevVPN
         sharesAnonymousUsageStatistics = false
         interruptedSession = nil
         activeSessionRecovery = nil

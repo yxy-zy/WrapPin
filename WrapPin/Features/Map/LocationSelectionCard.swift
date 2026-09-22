@@ -10,7 +10,8 @@ struct LocationSelectionCard: View {
     let isResolvingAddress: Bool
     let isPaired: Bool
     let sessionPhase: DeviceSessionPhase
-    let localDevVPNInstallURL: URL
+    let tunnelHandoffApp: TunnelHandoffApp
+    let tunnelAppInstallURL: URL
     let isPreviewingWalkingRoute: Bool
     let walkingRouteError: String?
     let onToggleFavourite: () -> Void
@@ -116,9 +117,12 @@ struct LocationSelectionCard: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if shouldOfferLocalDevVPN {
-                    Link(destination: localDevVPNInstallURL) {
-                        Label("Get LocalDevVPN", systemImage: "arrow.up.right.square")
+                if shouldOfferTunnelApp {
+                    Link(destination: tunnelAppInstallURL) {
+                        Label(
+                            String(format: NSLocalizedString("Get %@", comment: ""), tunnelHandoffApp.title),
+                            systemImage: "arrow.up.right.square"
+                        )
                             .font(.subheadline.weight(.semibold))
                     }
                     .frame(maxWidth: .infinity)
@@ -290,15 +294,15 @@ struct LocationSelectionCard: View {
         return false
     }
 
-    private var shouldOfferLocalDevVPN: Bool {
+    private var shouldOfferTunnelApp: Bool {
         guard case .failed(let message) = sessionPhase else { return false }
-        return message == String(localized: "Install LocalDevVPN before starting a location session.")
+        return message == String(localized: "Could not open the selected tunnel app. Check that it is installed and supports app links.")
     }
 
     private var primaryTitle: String {
         switch sessionPhase {
         case .openingLocalDevVPN:
-            String(localized: "Opening LocalDevVPN…")
+            String(format: NSLocalizedString("Opening %@…", comment: ""), tunnelHandoffApp.title)
         case .discovering:
             String(localized: "Finding This iPhone…")
         case .connecting:
@@ -355,7 +359,9 @@ struct LocationSelectionCard: View {
                 ? String(localized: "Start when ready. Stop restores this iPhone's real location.")
                 : String(localized: "Pair this iPhone before starting location control.")
         case .openingLocalDevVPN:
-            return String(localized: "WrapPin will return automatically after the tunnel starts.")
+            return tunnelHandoffApp == .localDevVPN
+                ? String(localized: "Wait for LocalDevVPN to connect and return. If it does not, return to WrapPin yourself.")
+                : String(localized: "Turn on the tunnel in the selected app, then return to WrapPin.")
         case .discovering:
             return String(localized: "Finding the paired iPhone through the private local tunnel.")
         case .connecting:

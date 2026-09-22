@@ -4,6 +4,25 @@ All notable public changes to WrapPin are recorded here.
 
 ## [Unreleased]
 
+### Shadowrocket loopback experiment (Build 16)
+
+- Ported upstream's tunnel-app selection and handoff to the verified LocalDevVPN baseline.
+- Retained the existing pairing, RSD, developer session, and location simulation paths.
+- Requires physical-device validation; Shadowrocket must expose the local pairing endpoint.
+
+## [1.0.8] - 2026-09-22 (upstream)
+
+### Added
+
+- Added a Settings choice for LocalDevVPN or Shadowrocket as the tunnel app to open when WrapPin cannot reach the paired iPhone.
+
+### Improved
+
+- Check the paired-device connection before opening the selected app on Wi-Fi, and avoid another app handoff once that connection is reachable for the current attempt.
+- Keep LocalDevVPN's existing cellular connect-and-return flow. Give Shadowrocket users a Wi-Fi recommendation when its device connection cannot be established on cellular.
+- Clarified connection guidance and diagnostics: WrapPin checks the paired-device tunnel, not another app's VPN switch.
+
+## [1.0.6] - 2026-09-17
 ### Improved
 
 - Kept on-device pairing alive while switching to Settings without making pairing depend on `BGTaskScheduler` registration.
@@ -69,6 +88,8 @@ First stable WrapPin release, based on Roam Control 0.9.2 Beta 3 and maintained 
 - Earlier candidates passed physical-device installation and core usage testing; the final 1.0 package should still be installed once before public release.
 
 [Unreleased]: https://github.com/suversal/WrapPin/commits/main
+[1.0.8]: https://github.com/suversal/WrapPin/releases/tag/v1.0.8
+[1.0.6]: https://github.com/suversal/WrapPin/releases/tag/v1.0.6
 [1.0.5]: https://github.com/suversal/WrapPin/releases/tag/v1.0.5
 [1.0.4]: https://github.com/suversal/WrapPin/releases/tag/v1.0.4
 [1.0.3]: https://github.com/suversal/WrapPin/releases/tag/v1.0.3

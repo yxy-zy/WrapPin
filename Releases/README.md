@@ -1,5 +1,53 @@
 # WrapPin releases
 
+The entries below describe upstream releases. This experiment has not been released or physically validated.
+
+## 1.0.8 (Build 15)
+
+- Created: 22 September 2026
+- Package: `WrapPin-1.0.8-build15.ipa`
+- Build: optimized unsigned Xcode Release Archive, arm64 iPhone executable
+- Requires: iOS 27.0 or later
+- Xcode: 27.0 (`27A266a`)
+- Distribution: unsigned IPA for SideStore or another user-side signing tool
+- SHA-256: `c05c943b0274879286363e504c95c23a8cba0f4cf74c228a61a9e7243ad6e218`
+- Changes: adds a LocalDevVPN/Shadowrocket handoff choice and clearer Wi-Fi/cellular tunnel guidance. It does not read another app's VPN switch or change location accuracy.
+- Verification: localization, native failure classification, background-session lifecycle, tunnel-handoff policy and route-recovery checks passed. The Release Archive and IPA payload, identity, arm64 architecture, unsigned state, privacy manifest and legal resources were checked. The user reported that the preceding Build 14 candidate looked okay; the final Build 15 IPA has not received a separate physical-device acceptance test.
+- Known issue: Shadowrocket on cellular may not expose the paired-device connection; use Wi-Fi or LocalDevVPN. LocalDevVPN on cellular retains its app handoff on each new session. Optional anonymous telemetry is inactive in this public-source build because its ingestion identifiers are blank.
+- Publication: pending GitHub Release `v1.0.8`.
+
+See [the 1.0.8 build notes](../Documentation/Release-1.0.8.md) for details.
+
+## 1.0.7 (Build 11)
+
+- Created: 21 September 2026
+- Package: `WrapPin-1.0.7-build11.ipa`
+- Build: optimized unsigned Xcode Release Archive, arm64 iPhone executable
+- Requires: iOS 27.0 or later
+- Xcode: 27.0 (`27A266a`)
+- Distribution: unsigned IPA for SideStore or another user-side signing tool
+- SHA-256: `070199959d635c1dda049fd2186c8800920dd167648272788a65bc60db2e86fc`
+- Changes: adds driving-route preview and constant-speed location simulation, with mode/speed recovery.
+- Publication: GitHub Release `v1.0.7`.
+
+See [the 1.0.7 build notes](../Documentation/Release-1.0.7.md) for details.
+
+## 1.0.6 (Build 9)
+
+- Created: 17 September 2026
+- Package: `WrapPin-1.0.6-build9.ipa`
+- Build: optimized unsigned Xcode Release Archive, arm64 iPhone executable
+- Requires: iOS 27.0 or later
+- Xcode: 27.0 (`27A266a`)
+- Distribution: unsigned IPA for SideStore or another user-side signing tool
+- SHA-256: `3ac594075b005162bcd3bd7521400b5d96cceeb7db046882060c0f1bc3a0d499`
+- Changes: removes the SideStore-sensitive `BGTaskScheduler` dependency from pairing and location startup, adds a Core Location background keep-alive for active simulations, and reports background-session health in Connection Health.
+- Verification: localization, native failure classification, background-session lifecycle, Xcode Release Archive, IPA payload, version, architecture, unsigned state, privacy manifest and legal resources were checked. Basic SideStore physical-device testing found no major problem; more affected-device coverage remains welcome.
+- Known issue: this release does not change map coordinates or claim to fix the previously observed walking or mainland-China map offset.
+- Publication: GitHub Release `v1.0.6`.
+
+See [the 1.0.6 build notes](../Documentation/Release-1.0.6.md) for details.
+
 ## 1.0.5 (Build 6)
 
 - Created: 15 September 2026
