@@ -1,0 +1,69 @@
+name: Build iLoader URL Bag HTTP/1.1 client
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/iloader-http1-client
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: nab138/iloader
+          ref: 348eefd7de78e9bc612c9d619b8b1e7a80ba3ba0
+          path: iloader
+
+      - uses: actions/checkout@v6
+        with:
+          repository: nab138/isideload
+          ref: f6a4d5dba717d72fc2af63eaba26b27ba44116be
+          path: isideload
+
+      - name: Restrict GrandSlam client to HTTP/1.1
+        shell: pwsh
+        run: |
+          $path = 'isideload/isideload/src/auth/grandslam.rs'
+          $source = Get-Content -LiteralPath $path -Raw
+          $original = '.http1_title_case_headers()'
+          if (-not $source.Contains($original)) { throw 'Expected GrandSlam client builder not found.' }
+          $patched = $source.Replace($original, ".http1_only()`n            .http1_title_case_headers()")
+          [System.IO.File]::WriteAllText((Resolve-Path $path), $patched)
+          $manifest = 'iloader/src-tauri/Cargo.toml'
+          $cargo = Get-Content -LiteralPath $manifest -Raw
+          $originalDependency = 'isideload = { version = "0.3.17", features = ["fs-storage"], git = "https://github.com/nab138/isideload", package = "isideload", branch = "apple-codesign-quick" }'
+          $replacementDependency = 'isideload = { version = "0.3.17", features = ["fs-storage"], path = "../../isideload/isideload" }'
+          if (-not $cargo.Contains($originalDependency)) { throw 'Expected isideload dependency not found.' }
+          [System.IO.File]::WriteAllText((Resolve-Path $manifest), $cargo.Replace($originalDependency, $replacementDependency))
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: choco install strawberryperl make --no-progress
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build patched iLoader
+        working-directory: iloader
+        shell: pwsh
+        run: |
+          bun install --frozen-lockfile
+          bunx tauri build --config src-tauri/ci.conf.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: iloader-http1-client-windows
+          path: iloader/src-tauri/target/release/bundle/**/*.exe
+          if-no-files-found: error
