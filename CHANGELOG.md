@@ -4,11 +4,12 @@ All notable public changes to WrapPin are recorded here.
 
 ## [Unreleased]
 
-### Shadowrocket loopback experiment (Build 16)
+### Shadowrocket loopback experiment (Build 17)
 
 - Ported upstream's tunnel-app selection and handoff to the verified LocalDevVPN baseline.
 - Retained the existing pairing, RSD, developer session, and location simulation paths.
 - Requires physical-device validation; Shadowrocket must expose the local pairing endpoint.
+- Added privacy-limited endpoint, TCP and native-session-stage diagnostics.
 
 ## [1.0.8] - 2026-09-22 (upstream)
 

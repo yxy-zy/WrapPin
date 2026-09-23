@@ -22,7 +22,7 @@ jobs:
           set -euo pipefail
           git rev-parse HEAD
           grep -q 'MARKETING_VERSION = 1.0.8;' WrapPin.xcodeproj/project.pbxproj
-          grep -q 'CURRENT_PROJECT_VERSION = 16;' WrapPin.xcodeproj/project.pbxproj
+          grep -q 'CURRENT_PROJECT_VERSION = 17;' WrapPin.xcodeproj/project.pbxproj
 
       - name: Check tunnel handoff policy
         run: |
@@ -49,11 +49,11 @@ jobs:
           set -euo pipefail
           mkdir -p package/Payload
           cp -R .derived-data/Build/Products/Release-iphoneos/WrapPin.app package/Payload/WrapPin.app
-          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.8-build16-shadowrocket-experimental.ipa
+          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.8-build17-shadowrocket-diagnostics.ipa
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
-          name: WrapPin-1.0.8-build16-shadowrocket-experimental
-          path: WrapPin-1.0.8-build16-shadowrocket-experimental.ipa
+          name: WrapPin-1.0.8-build17-shadowrocket-diagnostics
+          path: WrapPin-1.0.8-build17-shadowrocket-diagnostics.ipa
           if-no-files-found: error

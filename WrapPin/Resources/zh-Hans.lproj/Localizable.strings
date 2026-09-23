@@ -443,7 +443,7 @@
 "Support" = "获取帮助";
 "An inactive session means WrapPin's worker has ended. Other apps may need time to acquire a fresh real location." = "定位任务已结束，但其他 App 可能需要一些时间才能重新获取真实位置。";
 "This checks the saved pairing record and whether the paired iPhone is visible through LocalDevVPN. It never starts, changes, or stops your location." = "此检查只验证配对记录和 LocalDevVPN 连接，不会启动、修改或停止模拟定位。";
-"Copies a status-only report you can paste into a bug report. It never includes locations, searches, pairing records, PINs, device names or error text." = "复制一份仅包含连接状态的诊断报告，不含位置、搜索、配对记录、PIN、设备名称或错误原文。";
+"Copies status, local tunnel endpoints and network error codes. It never includes locations, searches, pairing records, PINs, device names or account credentials." = "复制连接状态、本机隧道地址和网络错误码；不含位置、搜索、配对记录、配对码、设备名称或账号凭据。";
 "Another VPN may affect local device connections. If it is appropriate for your network, compare a test with that VPN paused. Keep LocalDevVPN enabled when starting a location session." = "其他 VPN 可能影响本机连接。排障时可以暂时停用其他 VPN，但启动模拟定位时必须保持 LocalDevVPN 已连接。";
 "WrapPin has not detected another VPN. This is a troubleshooting check, not a diagnosis; an iOS scheduler rejection happens before the pairing connection starts." = "未检测到其他 VPN。此结果仅用于排障；如果 iOS 在配对连接开始前拒绝任务，原因与 VPN 无关。";
 "Not requested" = "尚未请求";

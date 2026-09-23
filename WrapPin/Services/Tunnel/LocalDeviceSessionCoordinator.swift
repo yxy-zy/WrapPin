@@ -108,6 +108,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
     }
     let backgroundKeepAlive = BackgroundLocationKeepAlive()
+    private(set) var connectionLog: [String] = []
     var tunnelHandoffApp: TunnelHandoffApp = .localDevVPN {
         didSet {
             if tunnelHandoffApp != oldValue {
@@ -198,6 +199,8 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
     func start(pairingRecord: Data, target: LocationTarget) {
         guard !workerIsRunning, !isBusy else { return }
+        connectionLog = []
+        logConnection("[VPN] Selected tunnel app: \(tunnelHandoffApp.title).")
         terminalFailureReported = false
         retryTelemetry.reset()
         schedulerFailureReason = nil
@@ -435,6 +438,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         isDiscoveringServices = true
         phase = .discovering
         connectionStage = .discoveringDevice
+        logConnection("[DISCOVERY] Searching for _remotepairing._tcp.local. service.")
         browser.delegate = self
         browser.searchForServices(ofType: "_remotepairing._tcp.", inDomain: "local.")
 
@@ -538,12 +542,14 @@ final class LocalDeviceSessionCoordinator: NSObject {
             return
         }
 
+        logConnection("[PAIRING] Bonjour identity matched; discovered port=\(service.port).")
         guard serviceProbeConnection == nil, serviceProbeRetryTask == nil else { return }
         let endpoint = NetServiceEndpointResolver.preferredHost(
             from: service.addresses,
             fallback: Self.localDevVPNPeerAddress
         )
         connectionStage = .verifyingDevice
+        logConnection("[TUN] Selected endpoint=\(endpoint.host):\(service.port) source=\(endpoint.usedFallback ? "local fallback" : "tunnel address").")
         verifyServiceIsReachable(RemotePairingService(
             host: endpoint.host,
             port: UInt16(service.port),
@@ -562,6 +568,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
 
         phase = .connecting
         connectionStage = .openingSecureSession
+        logConnection("[PAIRING] Starting unchanged native Pair Verify, RSD and developer session flow.")
         runNativeLocationSession()
     }
 
@@ -642,6 +649,10 @@ final class LocalDeviceSessionCoordinator: NSObject {
         backgroundKeepAlive.start()
         phase = .active(target)
         connectionStage = .active
+        logConnection("[PAIRING] Pair Verify passed (inferred from accepted location).")
+        logConnection("[RSD] RSD path passed (inferred from accepted location).")
+        logConnection("[DEVELOPER] Developer session active (inferred from accepted location).")
+        logConnection("[LOCATION] Simulated location accepted; native developer session active.")
         if let event = retryTelemetry.becameActive() {
             onConnectionEvent?(event)
         }
@@ -695,6 +706,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
             phase = .idle
             connectionStage = .idle
         case .failure(let message):
+            logConnection("[LOCATION] Native session ended with failure; stage=\(FailureStage.classify(message, fallback: .locationUnknown).rawValue).")
             if isRecoverableTunnelConnectionFailure(message) {
                 let stage = FailureStage.classify(message, fallback: .locationUnknown)
                 lastFailureStage = stage
@@ -776,6 +788,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         }
 
         serviceProbeAttemptCount += 1
+        logConnection("[TUN] TCP probe attempt=\(serviceProbeAttemptCount) endpoint=\(service.host):\(service.port).")
         let connection = NWConnection(
             host: NWEndpoint.Host(service.host),
             port: port,
@@ -789,7 +802,12 @@ final class LocalDeviceSessionCoordinator: NSObject {
                 Task { @MainActor [weak self] in
                     self?.finishServiceProbe(connection, service: service, reachable: true)
                 }
-            case .failed, .cancelled:
+            case .failed(let error):
+                Task { @MainActor [weak self] in
+                    self?.logConnection("[TUN] TCP failed endpoint=\(service.host):\(service.port) error=\(error).")
+                    self?.finishServiceProbe(connection, service: service, reachable: false)
+                }
+            case .cancelled:
                 Task { @MainActor [weak self] in
                     self?.finishServiceProbe(connection, service: service, reachable: false)
                 }
@@ -803,6 +821,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         serviceProbeTimeout = Task { @MainActor [weak self, weak connection] in
             try? await Task.sleep(for: .milliseconds(900))
             guard !Task.isCancelled, let self, let connection else { return }
+            self.logConnection("[TUN] TCP timeout endpoint=\(service.host):\(service.port) after 900 ms.")
             self.finishServiceProbe(connection, service: service, reachable: false)
         }
         connection.start(queue: serviceProbeQueue)
@@ -829,6 +848,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         guard phase == .discovering, pendingSession != nil else { return }
 
         if reachable {
+            logConnection("[TUN] TCP ready endpoint=\(service.host):\(service.port).")
             serviceProbeAttemptCount = 0
             hasReachedDeviceTunnel = true
             resolvedService = service
@@ -1043,6 +1063,7 @@ final class LocalDeviceSessionCoordinator: NSObject {
         cleanupDiscovery()
         mobileDataGuidance = nil
         hasOpenedTunnelAppThisAttempt = true
+        logConnection("[VPN] Opening selected tunnel app: \(tunnelHandoffApp.title).")
         phase = .openingLocalDevVPN
         connectionStage = .openingLocalDevVPN
 
@@ -1053,6 +1074,13 @@ final class LocalDeviceSessionCoordinator: NSObject {
             }
         }
 #endif
+    }
+
+    private func logConnection(_ entry: String) {
+        connectionLog.append(entry)
+        if connectionLog.count > 60 {
+            connectionLog.removeFirst(connectionLog.count - 60)
+        }
     }
 
 }

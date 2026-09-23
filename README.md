@@ -34,7 +34,7 @@ WrapPin 是 Sean Howarth 原项目 [Roam Control](https://github.com/seanhowarth
 
 ## 当前进展
 
-- 本实验分支为 **1.0.8（Build 16）**；正式公开版本以 GitHub Releases 为准。
+- 本实验分支为 **1.0.8（Build 17）**；正式公开版本以 GitHub Releases 为准。
 - 已完成完整简体中文界面、地图标签本地化、配对与连接引导、中文安装文档和使用手册。
 - 已完善地址与坐标复制、连接检测、诊断信息复制、异常会话恢复和真实位置恢复流程。
 - 已修复长时间本机配对容易中断，以及误连 USB/Wi-Fi `169.254.x.x` 链路本地地址的问题；已优先使用 LocalDevVPN 端点。

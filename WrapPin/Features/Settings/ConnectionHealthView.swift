@@ -146,7 +146,7 @@ struct ConnectionHealthView: View {
             } header: {
                 Text("Support")
             } footer: {
-                Text("Copies a status-only report you can paste into a bug report. It never includes locations, searches, pairing records, PINs, device names or error text.")
+                Text("Copies status, local tunnel endpoints and network error codes. It never includes locations, searches, pairing records, PINs, device names or account credentials.")
             }
 
             Section("Other VPNs") {
@@ -403,6 +403,7 @@ struct ConnectionHealthView: View {
         App: \(appVersion) (\(build))
         iOS: \(UIDevice.current.systemVersion)
         Pairing: \(pairingValue)
+        Tunnel app: \(appModel.tunnelHandoffApp.title)
         Last pairing failure stage (this launch): \(appModel.onDevicePairing.lastFailureStage?.rawValue ?? "None")
         Device tunnel: \(localDevVPNValue)
         Session: \(sessionValue)
@@ -415,6 +416,8 @@ struct ConnectionHealthView: View {
         Connection check result: \(diagnosticResultStatus)
         Appearance: \(appModel.appearance.title)
         Map style: \(appModel.mapDisplayStyle.title)
+        Connection log:
+        \(appModel.deviceSession.connectionLog.joined(separator: "\n"))
         Location data: Not included
         """
     }
