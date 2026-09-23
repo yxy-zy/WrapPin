@@ -1,0 +1,59 @@
+name: Build Shadowrocket experiment IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/shadowrocket-loopback-new-device
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned WrapPin IPA
+    runs-on: xcode-27
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Verify source identity
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          grep -q 'MARKETING_VERSION = 1.0.8;' WrapPin.xcodeproj/project.pbxproj
+          grep -q 'CURRENT_PROJECT_VERSION = 16;' WrapPin.xcodeproj/project.pbxproj
+
+      - name: Check tunnel handoff policy
+        run: |
+          set -euo pipefail
+          swiftc WrapPin/Models/AppPreferences.swift scripts/test-tunnel-handoff.swift -o /tmp/wrappin-tunnel-handoff-test
+          /tmp/wrappin-tunnel-handoff-test
+
+      - name: Build the iPhone app without signing
+        run: >-
+          xcodebuild
+          -project WrapPin.xcodeproj
+          -scheme WrapPin
+          -configuration Release
+          -sdk iphoneos
+          -destination 'generic/platform=iOS'
+          -derivedDataPath "$PWD/.derived-data"
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=''
+          clean build
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          mkdir -p package/Payload
+          cp -R .derived-data/Build/Products/Release-iphoneos/WrapPin.app package/Payload/WrapPin.app
+          ditto -c -k --sequesterRsrc --keepParent package/Payload WrapPin-1.0.8-build16-shadowrocket-experimental.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: WrapPin-1.0.8-build16-shadowrocket-experimental
+          path: WrapPin-1.0.8-build16-shadowrocket-experimental.ipa
+          if-no-files-found: error
